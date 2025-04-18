@@ -1,32 +1,44 @@
+import traceback
+from typing import Any, Generator
 import librosa
 import io
+import soundfile as sf
 
-def preprocess_audio(audio_bytes, target_sr=44100, normalize=True):
+def preprocess_audio(audio_chunks: Generator[bytes, Any, None], target_sr=44100, normalize=True):
     """
-    오디오 바이트 데이터를 전처리하는 함수
+    오디오 청크를 전처리하는 제너레이터 함수
     
     Parameters:
     -----------
-    audio_bytes : bytes
-        오디오 파일의 바이트 데이터
+    audio_chunk : np.ndarray
+        처리할 오디오 청크 데이터
+    sr : int, optional (default=44100)
+        입력 오디오 청크의 샘플링 레이트 (Hz)
     target_sr : int, optional (default=44100)
         목표 샘플링 레이트 (Hz)
     normalize : bool, optional (default=True)
         볼륨 노멀라이제이션 적용 여부
         
-    Returns:
-    --------
-    y : np.ndarray
-        오디오 신호 데이터 (모노 채널)
+    Yields:
+    -------
+    processed_chunk : np.ndarray
+        처리된 오디오 청크 데이터
+        
+    Raises:
+    -------
+    Exception
+        오디오 처리 중 발생하는 모든 예외
     """
-    # 바이트 데이터를 librosa로 로드
-    audio_io = io.BytesIO(audio_bytes)
-    
-    # librosa로 오디오 로드 (모노 채널, 목표 샘플링 레이트 설정)
-    y, sr = librosa.load(audio_io, sr=target_sr, mono=True)
-    
-    # 볼륨 노멀라이제이션 적용 (선택 사항)
-    if normalize:
-        y = librosa.util.normalize(y)
-    
-    return y, sr
+    try:
+        for audio_chunk, sr in audio_chunks:
+            # 리샘플링
+            processed_chunk = librosa.resample(audio_chunk, orig_sr=sr, target_sr=target_sr)
+
+            # 볼륨 정규화
+            # processed_chunk = librosa.util.normalize(audio_chunk)
+            
+            yield processed_chunk
+        
+    except Exception as e:
+        # 모든 예외를 상위로 전달
+        raise Exception(f"오디오 전처리 실패: {e}")

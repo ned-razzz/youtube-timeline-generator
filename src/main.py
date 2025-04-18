@@ -2,46 +2,64 @@
 YouTube 오디오 추출 애플리케이션 메인 모듈
 """
 
+import traceback
+from src.file_handle import read_chunks, save_audio
 from src.preprocess import preprocess_audio
-from src.youtube_audio import YouTubeAudioExtractor
+from src.remove_vocals import remove_vocals
+from src.youtube_audio import download_youtube_audio
 
+# 테스트할 YouTube URL
+# url = "https://www.youtube.com/watch?v=w-NM1UQ3HnU"
+url = "https://www.youtube.com/watch?v=_6E8SWFiz5M"
+start = "00:00:00"
+end = "00:10:00"
 
 def main():
     """메인 실행 함수"""
-    # 테스트할 YouTube URL
-    # url = "https://www.youtube.com/watch?v=w-NM1UQ3HnU"
-    url = "https://www.youtube.com/watch?v=_6E8SWFiz5M"
-    start = "00:00:00"
-    end = "00:47:00"
-
+    print("=======================================")
     print(f"URL: {url}")
     print(f"구간: {start} ~ {end}")
 
-    print()
-    print("YouTube 오디오 추출 시작")
-    audio_bytes = downloadYoutubeAudio(url, start, end)
+    try:
+        print("YouTube 오디오 추출...")
+        audio_path, file_name = download_youtube_audio(
+            url, start, end, audio_format="wav"
+        )        
+        print(audio_path)
 
-    print()
-    print("YouTube 오디오 전처리 시작")
-    preprocessed_audio, sampling_rate = preprocess_audio(audio_bytes)
-    print(f"성공: 샘플링 레이트 {sampling_rate}")
+        chunks = read_chunks(audio_path)
 
+        # print("오디오 전처리...")
+        preprocessed_chunks = preprocess_audio(chunks)
 
+        # print("오디오 저장...")
+        save_audio(preprocessed_chunks, file_name)
 
-def downloadYoutubeAudio(url, start, end):
-    audio_data, content_type, title = YouTubeAudioExtractor.get_youtube_audio(
-        url, start, end, audio_format="mp3"
-    )
+        # # Consume the generator to process all chunks
+        # all_chunks = []
+        # for chunk in preprocessed_chunks:
+        #     print("process")
+        #     all_chunks.append(chunk)
 
-    if audio_data:
-        print(f"성공: {title}")
-        print(f"컨텐츠 타입: {content_type}")
-        print(f"데이터 크기: {len(audio_data)} 바이트")
-    else:
-        print("오류: 오디오 구간 추출에 실패했습니다.")
+        print()
+        print("작업이 완료되었습니다.")
 
-    return audio_data
-
+        # print()
+        # print("YouTube 오디오 전처리...")
+        # preprocessed_audio = preprocess_audio(audio_chunk)
+        # print(f"성공")
+        
+        # result_bytes = remove_vocals(preprocessed_audio, 120)
+        
+        # output_file = "test/instrumental.wav"
+        # with open(output_file, 'wb') as f:
+        #     f.write(result_bytes)
+            
+        # print(f"보컬 제거 완료! 결과가 '{output_file}'에 저장되었습니다.")
+    except Exception as e:
+        print(f"유튜브 타임라인 생성을 실패하였였습니다:")
+        print(e)
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()
