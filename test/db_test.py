@@ -7,7 +7,7 @@ import ast
 db_manager = DatabaseManager()
 
 # id=1인 노래의 지문 가져오기
-result = db_manager.load_changpop_by_id(19)
+result = db_manager.load_changpop_by_id(sys.argv[1])
 if not result:
     raise ValueError("노래를 데이터베이스에서 찾을 수 없습니다.")
 
