@@ -7,11 +7,13 @@ import ast
 db_manager = DatabaseManager()
 
 # id=1인 노래의 지문 가져오기
-result = db_manager.load_changpop_by_id(sys.argv[1])
-if not result:
+results = db_manager.load_changpops_by_worldcup(sys.argv[1])
+if not results:
     raise ValueError("노래를 데이터베이스에서 찾을 수 없습니다.")
 
 np.set_printoptions(threshold=sys.maxsize)
-print(result['shape'])
-print(type(result['shape']))
-print(result['fingerprint'])
+print(results[1]['fingerprint'])
+# slist = {}
+# for result in results:
+#     slist[result['name']] = result['dtype']
+# print(slist)

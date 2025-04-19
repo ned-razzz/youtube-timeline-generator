@@ -3,7 +3,9 @@ from typing import Any, Generator, Dict
 import logging
 import essentia.standard as es
 import json
-from ..db_manager import DatabaseManager, ChangPopData
+
+from fingerprint_manager.fingerprint_generator import convert_audio_fingerprint
+from ..db_manager import DatabaseManager
 
 
 logger = logging.getLogger(__name__)
@@ -22,8 +24,7 @@ class SongDetector:
         self.sample_rate = sample_rate
         self.sensitivity = sensitivity
 
-        self._reference: ChangPopData = None
-        self._reference_fingerprint = None
+        self._reference = None
         self._load_reference_fingerprint()
         
     def _load_reference_fingerprint(self):
@@ -33,12 +34,11 @@ class SongDetector:
         db_manager = DatabaseManager()
         
         # id=1인 노래의 지문 가져오기
-        result: ChangPopData = db_manager.load_changpop_by_id(1)
-        if not result:
+        data = db_manager.load_changpop_by_id(1)
+        if not data:
             raise ValueError("ID=1인 노래를 데이터베이스에서 찾을 수 없습니다.")
         
-        self._reference = result
-        self._reference_fingerprint = result["fingerprint"]
+        self._reference = data
         logger.info("참조 오디오 지문 로드 완료")
     
     def _compare_fingerprints(self, chunk_fingerprint: Any) -> float:
@@ -59,7 +59,7 @@ class SongDetector:
         
         try:
             # 참조 지문과 청크 지문의 길이가 다를 수 있으므로 더 짧은 길이 사용
-            min_length = min(len(self._reference_fingerprint), len(chunk_fingerprint))
+            min_length = min(len(self._reference['fingerprint']), len(chunk_fingerprint))
             
             if min_length == 0:
                 return 0.0
@@ -69,8 +69,8 @@ class SongDetector:
             window_size = 20  # 비교 윈도우 크기
             
             # 슬라이딩 윈도우로 가장 일치하는 부분 찾기
-            for i in range(max(1, len(self._reference_fingerprint) - window_size)):
-                ref_window = self._reference_fingerprint[i:i+window_size]
+            for i in range(max(1, len(self._reference['fingerprint']) - window_size)):
+                ref_window = self._reference['fingerprint'][i:i+window_size]
                 
                 for j in range(max(1, len(chunk_fingerprint) - window_size)):
                     chunk_window = chunk_fingerprint[j:j+window_size]
@@ -116,7 +116,7 @@ class SongDetector:
             
             try:
                 # 청크에서 지문 생성
-                chunk_fingerprint = 
+                chunk_fingerprint = convert_audio_fingerprint()
                 
                 # 참조 지문과 비교
                 match_score = self._compare_fingerprints(chunk_fingerprint)

@@ -1,3 +1,4 @@
+import traceback
 import yt_dlp
 from pathlib import Path
 import re
@@ -86,4 +87,5 @@ def download_youtube_audio(
         raise ValueError(f"YouTube에서 다운로드 실패: {e}")
     except Exception as e:
         logger.error(f"오디오 처리 오류: {e}", exc_info=True)
+        traceback.print_exc()
         raise RuntimeError(f"오디오 처리 실패: {e}")
