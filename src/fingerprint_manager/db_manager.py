@@ -1,0 +1,302 @@
+"""
+데이터베이스 연결 및 작업을 위한 모듈
+초기화 시점에 즉시 연결을 생성하는 단순화된 구현
+"""
+import sqlite3
+from pathlib import Path
+from typing import List, Dict, Optional, TypedDict, Union, Any
+from contextlib import contextmanager
+
+# WorldCup 데이터 타입 정의
+class WorldCupData(TypedDict, total=False):
+    title: str
+    genre: str  
+    series_number: int
+    
+# WorldCup 데이터 타입 정의
+class ChangPopData(TypedDict, total=False):
+    name: str
+    artist: str
+    duration: float
+    fingerprint_type: str
+    fingerprint_data: bytes
+    worldcup_id: Optional[int]
+
+class DatabaseManager:
+    """ChangPop 및 WorldCup 데이터 관리를 위한 데이터베이스 관리자 클래스"""
+    
+    def __init__(self, db_path: Union[str, Path] = "db/fingerprints.db"):
+        """
+        데이터베이스 관리자 초기화 및 연결 생성
+        
+        Args:
+            db_path: 데이터베이스 파일 경로
+        """
+        self.db_path = str(db_path)
+        self.conn = sqlite3.connect(self.db_path)
+        self.conn.row_factory = sqlite3.Row  # 딕셔너리 형태로 결과 반환
+    
+    @contextmanager
+    def transaction(self):
+        """
+        트랜잭션 컨텍스트 매니저
+        
+        트랜잭션 내에서 수행되는 모든 작업은 하나의 단위로 취급됩니다.
+        예외가 발생하면 모든 변경사항이 롤백됩니다.
+        
+        Yields:
+            sqlite3.Cursor: 데이터베이스 커서 객체
+        """
+        cursor = self.conn.cursor()
+        
+        try:
+            yield cursor
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+    
+    def insert_changpop(self, data: ChangPopData) -> int:
+        """
+        ChangPop 데이터를 데이터베이스에 삽입
+        
+        Args:
+            data: 삽입할 ChangPop 데이터
+                - name: 곡 이름
+                - artist: 아티스트 이름
+                - duration: 음악 재생 시간(초)
+                - fingerprint_type: 지문 유형
+                - fingerprint_data: 지문 데이터(바이너리)
+                - worldcup_id: 관련 월드컵 ID
+            
+        Returns:
+            int: 삽입된 레코드의 ID
+        
+        Raises:
+            Exception: 데이터베이스 작업 실패 시
+        """
+        with self.transaction() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO changpops
+                (name, artist, duration, fingerprint_type, fingerprint_data, worldcup_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (data['name'], data['artist'], data['duration'], data['fingerprint_type'], 
+                 data['fingerprint_data'], data['worldcup_id'])
+            )
+            return cursor.lastrowid
+    
+    def insert_worldcup(self, data: WorldCupData) -> int:
+        """
+        WorldCup 데이터를 데이터베이스에 삽입
+        
+        Args:
+            data: 삽입할 WorldCup 데이터
+                - title: 월드컵 제목
+                - genre: 장르
+                - series_number: 시리즈 번호
+            
+        Returns:
+            int: 삽입된 레코드의 ID
+        
+        Raises:
+            Exception: 데이터베이스 작업 실패 시
+        """
+        with self.transaction() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO worldcups 
+                (title, genre, series_number)
+                VALUES (?, ?, ?)
+                """,
+                (data['title'], data['genre'], data['series_number'])
+            )
+            return cursor.lastrowid
+    
+    def delete_changpop(self, changpop_id: int) -> bool:
+        """
+        ChangPop 데이터 삭제
+        
+        Args:
+            changpop_id: 삭제할 ChangPop ID
+            
+        Returns:
+            bool: 삭제 성공 여부
+        
+        Raises:
+            Exception: 데이터베이스 작업 실패 시
+        """
+        with self.transaction() as cursor:
+            cursor.execute(
+                "DELETE FROM changpops WHERE id = ?",
+                (changpop_id,)
+            )
+            return cursor.rowcount > 0
+    
+    def load_changpops_by_worldcup(self, worldcup_id: int) -> List[Dict[str, Any]]:
+        """
+        특정 WorldCup ID에 속한 모든 ChangPop 데이터 로드
+        
+        Args:
+            worldcup_id: 찾을 WorldCup ID
+            
+        Returns:
+            List[Dict[str, Any]]: ChangPop 데이터 목록
+        
+        Raises:
+            Exception: 데이터베이스 작업 실패 시
+        """
+        cursor = self.conn.cursor()
+        
+        cursor.execute(
+            """
+            SELECT id, name, artist, duration, fingerprint_type, worldcup_id
+            FROM changpops
+            WHERE worldcup_id = ?
+            ORDER BY id
+            """,
+            (worldcup_id,)
+        )
+        
+        # 바이너리 데이터를 제외한 기본 정보만 반환
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def load_changpop_by_id(self, changpop_id: int) -> Optional[Dict[str, Any]]:
+        """
+        ID로 특정 ChangPop 데이터 로드
+        
+        Args:
+            changpop_id: 찾을 ChangPop ID
+            
+        Returns:
+            Optional[Dict[str, Any]]: ChangPop 데이터 또는 None(찾지 못한 경우)
+        
+        Raises:
+            Exception: 데이터베이스 작업 실패 시
+        """
+        cursor = self.conn.cursor()
+        
+        fields = "id, name, artist, duration, fingerprint_type, worldcup_id, fingerprint_data"
+            
+        cursor.execute(
+            f"SELECT {fields} FROM changpops WHERE id = ?",
+            (changpop_id,)
+        )
+        
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    
+    def get_worldcup_details(self, worldcup_id: int) -> Optional[Dict[str, Any]]:
+        """
+        특정 WorldCup의 상세 정보를 로드
+        
+        Args:
+            worldcup_id: 찾을 WorldCup ID
+            
+        Returns:
+            Optional[Dict[str, Any]]: WorldCup 정보 또는 None(찾지 못한 경우)
+        """
+        cursor = self.conn.cursor()
+        
+        cursor.execute(
+            """
+            SELECT id, title, genre, series_number
+            FROM worldcups
+            WHERE id = ?
+            """,
+            (worldcup_id,)
+        )
+        
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    
+    def get_all_worldcups(self) -> List[Dict[str, Any]]:
+        """
+        모든 WorldCup 데이터 로드
+        
+        Returns:
+            List[Dict[str, Any]]: WorldCup 데이터 목록
+        """
+        cursor = self.conn.cursor()
+        
+        cursor.execute(
+            """
+            SELECT id, title, genre, series_number
+            FROM worldcups
+            ORDER BY id
+            """
+        )
+        
+        return [dict(row) for row in cursor.fetchall()]
+    
+    def batch_insert_changpops(self, changpops: List[ChangPopData]) -> List[int]:
+        """
+        여러 ChangPop 데이터를 한 번의 트랜잭션으로 삽입
+        
+        Args:
+            changpops: 삽입할 ChangPop 데이터 목록. 각 항목은 다음 키를 포함해야 함:
+                      'name', 'artist', 'duration', 'fingerprint_type', 
+                      'fingerprint_data', 'worldcup_id'
+                      
+        Returns:
+            List[int]: 삽입된 레코드의 ID 목록
+        """
+        with self.transaction() as cursor:
+            ids = []
+            for changpop in changpops:
+                cursor.execute(
+                    """
+                    INSERT INTO changpops 
+                    (name, artist, duration, fingerprint_type, fingerprint_data, worldcup_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        changpop['name'], 
+                        changpop['artist'], 
+                        changpop['duration'], 
+                        changpop['fingerprint_type'],
+                        changpop['fingerprint_data'],
+                        changpop['worldcup_id']
+                    )
+                )
+                ids.append(cursor.lastrowid)
+            return ids
+    
+    def execute_query(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
+        """
+        사용자 정의 쿼리 실행
+        
+        Args:
+            query: 실행할 SQL 쿼리
+            params: 쿼리에 바인딩할 매개변수
+            
+        Returns:
+            List[Dict[str, Any]]: 쿼리 결과
+        """
+        cursor = self.conn.cursor()
+        
+        cursor.execute(query, params)
+        
+        # SELECT 쿼리인 경우 결과 반환
+        if query.strip().upper().startswith("SELECT"):
+            return [dict(row) for row in cursor.fetchall()]
+        
+        # INSERT, UPDATE, DELETE 등의 경우 영향받은 행 수 반환
+        self.conn.commit()
+        return [{"affected_rows": cursor.rowcount}]
+    
+    def close(self):
+        """
+        데이터베이스 연결을 명시적으로 닫습니다.
+        """
+        if self.conn:
+            self.conn.close()
+    
+    def __enter__(self):
+        """컨텍스트 매니저 진입시 자신을 반환합니다."""
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """컨텍스트 매니저 종료시 연결을 닫습니다."""
+        self.close()
