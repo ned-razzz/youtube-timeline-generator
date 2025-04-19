@@ -16,10 +16,10 @@ class WorldCupData(TypedDict, total=False):
 # WorldCup 데이터 타입 정의
 class ChangPopData(TypedDict, total=False):
     name: str
-    artist: str
+    artist: Optional[str]
     duration: float
-    fingerprint_type: str
-    fingerprint_data: bytes
+    fingerprint_method: str
+    fingerprint: bytes
     worldcup_id: Optional[int]
 
 class DatabaseManager:
@@ -65,8 +65,8 @@ class DatabaseManager:
                 - name: 곡 이름
                 - artist: 아티스트 이름
                 - duration: 음악 재생 시간(초)
-                - fingerprint_type: 지문 유형
-                - fingerprint_data: 지문 데이터(바이너리)
+                - fingerprint_method: 지문 유형
+                - fingerprint: 지문 데이터(바이너리)
                 - worldcup_id: 관련 월드컵 ID
             
         Returns:
@@ -79,11 +79,11 @@ class DatabaseManager:
             cursor.execute(
                 """
                 INSERT INTO changpops
-                (name, artist, duration, fingerprint_type, fingerprint_data, worldcup_id)
+                (name, artist, duration, fingerprint_method, fingerprint, worldcup_id)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (data['name'], data['artist'], data['duration'], data['fingerprint_type'], 
-                 data['fingerprint_data'], data['worldcup_id'])
+                (data['name'], data['artist'], data['duration'], data['fingerprint_method'], 
+                 data['fingerprint'], data['worldcup_id'])
             )
             return cursor.lastrowid
     
@@ -151,7 +151,7 @@ class DatabaseManager:
         
         cursor.execute(
             """
-            SELECT id, name, artist, duration, fingerprint_type, worldcup_id
+            SELECT id, name, artist, duration, fingerprint_method, worldcup_id
             FROM changpops
             WHERE worldcup_id = ?
             ORDER BY id
@@ -177,7 +177,7 @@ class DatabaseManager:
         """
         cursor = self.conn.cursor()
         
-        fields = "id, name, artist, duration, fingerprint_type, worldcup_id, fingerprint_data"
+        fields = "id, name, artist, duration, fingerprint_method, worldcup_id, fingerprint"
             
         cursor.execute(
             f"SELECT {fields} FROM changpops WHERE id = ?",
@@ -236,8 +236,8 @@ class DatabaseManager:
         
         Args:
             changpops: 삽입할 ChangPop 데이터 목록. 각 항목은 다음 키를 포함해야 함:
-                      'name', 'artist', 'duration', 'fingerprint_type', 
-                      'fingerprint_data', 'worldcup_id'
+                      'name', 'artist', 'duration', 'fingerprint_method', 
+                      'fingerprint', 'worldcup_id'
                       
         Returns:
             List[int]: 삽입된 레코드의 ID 목록
@@ -248,15 +248,15 @@ class DatabaseManager:
                 cursor.execute(
                     """
                     INSERT INTO changpops 
-                    (name, artist, duration, fingerprint_type, fingerprint_data, worldcup_id)
+                    (name, artist, duration, fingerprint_method, fingerprint, worldcup_id)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
                     (
                         changpop['name'], 
                         changpop['artist'], 
                         changpop['duration'], 
-                        changpop['fingerprint_type'],
-                        changpop['fingerprint_data'],
+                        changpop['fingerprint_method'],
+                        changpop['fingerprint'],
                         changpop['worldcup_id']
                     )
                 )

@@ -25,10 +25,10 @@ def main():
     db = DatabaseManager()
     db.insert_changpop({
         'name': '리미제라블 1화', 
-        'artist': '신창섭으로 자기개발', 
+        'artist': None, 
         'duration': duration,
-        'fingerprint_type': metadata['fingerprint_method'],
-        'fingerprint_data': fingerprint.tobytes(),
+        'fingerprint_method': metadata['fingerprint_method'],
+        'fingerprint': fingerprint.tobytes(),
         'worldcup_id': None,
         })
 
