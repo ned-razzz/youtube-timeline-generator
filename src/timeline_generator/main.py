@@ -3,10 +3,9 @@ YouTube 오디오 추출 애플리케이션 메인 모듈
 """
 import traceback
 import soundfile as sf
-from src.file_handler import read_chunks, save_audio
-from src.preprocessor import preprocess_audio
-from src.vocal_remover import remove_vocals
-from src.audio_downloader import download_youtube_audio
+from .file_handler import read_chunks, save_audio
+from .vocal_remover import remove_vocals
+from .audio_downloader import download_youtube_audio
 
 # 테스트할 YouTube URL
 url = "https://www.youtube.com/watch?v=w-NM1UQ3HnU"
@@ -45,9 +44,9 @@ def main():
         print("작업이 완료되었습니다.")
 
     except Exception as e:
+        traceback.print_exc()
         print(f"유튜브 타임라인 생성을 실패하였였습니다:")
         print(e)
-        traceback.print_exc()
 
 if __name__ == "__main__":
     main()
