@@ -3,10 +3,10 @@ YouTube 오디오 추출 애플리케이션 메인 모듈
 """
 import traceback
 import soundfile as sf
-from src.file_handle import read_chunks, save_audio
-from src.preprocess import preprocess_audio
-from src.remove_vocals import remove_vocals
-from src.youtube_audio import download_youtube_audio
+from src.file_handler import read_chunks, save_audio
+from src.preprocessor import preprocess_audio
+from src.vocal_remover import remove_vocals
+from src.audio_downloader import download_youtube_audio
 
 # 테스트할 YouTube URL
 url = "https://www.youtube.com/watch?v=w-NM1UQ3HnU"

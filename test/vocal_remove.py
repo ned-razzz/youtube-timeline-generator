@@ -1,4 +1,4 @@
-from src.remove_vocals import remove_vocals_chunked
+from src.vocal_remover import remove_vocals_chunked
 import sys
 
 input_file = sys.argv[1]

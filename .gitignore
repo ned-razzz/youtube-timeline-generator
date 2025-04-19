@@ -1,5 +1,5 @@
 pretrained_models/
-downloads/
-outputs/
+download/
+output/
+audio/
 __pycache__
-리미제라블/
