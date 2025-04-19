@@ -4,6 +4,7 @@
 """
 import ast
 import json
+import pickle
 import sqlite3
 from pathlib import Path
 from typing import List, Dict, Optional, TypedDict, Union, Any
@@ -20,9 +21,11 @@ class WorldCupData(TypedDict, total=False):
 class ChangPopData(TypedDict, total=False):
     name: str
     artist: Optional[str]
-    metadata: Dict[str, Any]
-    fingerprint: np.ndarray
     worldcup_id: Optional[int]
+    constellation_map: list
+    peak_pairs: dict
+    total_frames: int
+    duration: float
 
 class DatabaseManager:
     """ChangPop 및 WorldCup 데이터 관리를 위한 데이터베이스 관리자 클래스"""
@@ -66,7 +69,6 @@ class DatabaseManager:
             data: 삽입할 ChangPop 데이터
                 - name: 곡 이름
                 - artist: 아티스트 이름
-                - fingerprint: 지문 데이터(바이너리)
                 - worldcup_id: 관련 월드컵 ID
             
         Returns:
@@ -79,11 +81,12 @@ class DatabaseManager:
             cursor.execute(
                 """
                 INSERT INTO changpops
-                (name, artist, fingerprint, worldcup_id, duration, dtype, shape)
+                (name, artist, worldcup_id, constellation_map, peak_pairs, total_frames, duration)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (data['name'], data['artist'], data['fingerprint'].tobytes(), data['worldcup_id'],
-                 data['metadata']['duration'], data['metadata']['dtype'],  data['metadata']['shape'])
+                (data['name'], data['artist'], data['worldcup_id'],
+                 pickle.dumps(data['constellation_map']), pickle.dumps(data['peak_pairs']),
+                 data['total_frames'], data['duration'])
             )
             return cursor.lastrowid
     
@@ -148,10 +151,9 @@ class DatabaseManager:
             Exception: 데이터베이스 작업 실패 시
         """
         cursor = self.conn.cursor()
-        
         cursor.execute(
             """
-            SELECT id, name, artist, json(metadata) AS metadata, fingerprint, worldcup_id
+            SELECT id, name, artist, worldcup_id, constellation_map, peak_pairs, total_frames, duration
             FROM changpops
             WHERE worldcup_id = ?
             ORDER BY id
@@ -159,8 +161,15 @@ class DatabaseManager:
             (worldcup_id,)
         )
         
-        # 바이너리 데이터를 제외한 기본 정보만 반환
-        return [dict(row) for row in cursor.fetchall()]
+        data_list = []
+        for row in cursor.fetchall():
+            data = dict(row)
+            if data:
+                data['constellation_map'] = pickle.loads(data['constellation_map'])
+                data['peak_pairs'] = pickle.loads(data['peak_pairs'])
+            data_list.append(data)
+        return data_list
+        
     
     def load_changpop_by_id(self, changpop_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -176,9 +185,7 @@ class DatabaseManager:
             Exception: 데이터베이스 작업 실패 시
         """
         cursor = self.conn.cursor()
-        
         fields = "id, name, fingerprint, dtype, shape, duration"
-            
         cursor.execute(
             f"SELECT {fields} FROM changpops WHERE id = ?",
             (changpop_id,)
@@ -187,8 +194,8 @@ class DatabaseManager:
         
         data = dict(row) if row else None
         if data:
-            data['shape'] = ast.literal_eval(data['shape'])
-            data['fingerprint'] = np.ndarray(shape=data['shape'], dtype=data['dtype'], buffer=data['fingerprint'])
+            data['constellation_map'] = pickle.loads(data['constellation_map'])
+            data['peak_pairs'] = pickle.loads(data['peak_pairs'])
         return data
     
     def get_worldcup_details(self, worldcup_id: int) -> Optional[Dict[str, Any]]:

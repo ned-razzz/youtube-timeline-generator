@@ -1,12 +1,14 @@
+from collections import defaultdict
 import os
+from pathlib import Path
 import pickle
-import essentia
+from typing import Any
 import essentia.standard as es
 import numpy as np
 from datetime import datetime
 
 
-def convert_audio_fingerprint(audio_file):
+def convert_audio_fingerprint(audio_file) -> dict:
     """
     오디오 파일에서 Chromaprint 지문 생성
 
@@ -16,117 +18,84 @@ def convert_audio_fingerprint(audio_file):
     반환:
         tuple: (지문 배열, 메타데이터)
     """
-    try:
-        sample_rate = 44100
-        # 오디오 파일 로드
-        loader = es.MonoLoader(filename=audio_file, sampleRate=sample_rate)
-        audio = loader()
+    # 오디오 파일 목록을 순회하며 오디오 지문 생성
+    fingerprint = get_spectrogram_fingerprint(audio_file)
 
-        # 오디오 데이터 유효성 검사
-        if not _is_audio_valid(audio):
-            print(f"경고: 오디오 파일 '{audio_file}'의 데이터가 유효하지 않습니다.")
-            if np.all(audio == 0):
-                print("오디오 데이터가 모두 0입니다. 비어있는 파일일 수 있습니다.")
-            return None, {}
-        print(f"오디오 통계: 최소={np.min(audio)}, 최대={np.max(audio)}, 평균={np.mean(audio)}")
+    return fingerprint
 
-        # 오디오 길이 계산
-        duration = len(audio) / sample_rate
-
-        # Chromaprint 지문 생성
-        fingerprint = create_fingerprint(audio)
-        
-        # 지문 출력 디버깅
-        print(f"생성된 지문 모양: {fingerprint.shape}, 타입: {fingerprint.dtype}")
-        print(f"지문 통계: 최소={np.min(fingerprint)}, 최대={np.max(fingerprint)}")
-        print(f"지문 샘플(처음 5개): {fingerprint[:5]}")
-
-        # 모든 값이 같은지 확인
-        if np.all(fingerprint == fingerprint[0]):
-            print("경고: 생성된 지문의 모든 값이 동일합니다.")
-
-        # 지문 메타데이터
-        metadata = {
-            "duration": round(duration),
-            "sample_rate": sample_rate,
-            "channels": 1,
-            "method": "chromaprint_v2",  # 메소드 이름 변경해 구분
-            "dtype": str(fingerprint.dtype),
-            "shape": str(fingerprint.shape),
-        }
-
-        return fingerprint, metadata
-
-    except Exception as e:
-        print(f"지문 생성 중 오류 발생: {e}")
-        import traceback
-        traceback.print_exc()
-        return None, {}
-
-
-def _is_audio_valid(audio):
-    """오디오 데이터 유효성 검사"""
-    if audio is None or len(audio) == 0:
-        return False
+def get_spectrogram_fingerprint(audio, sample_rate=44100):
+    """
+    스펙트로그램 피크 기반 오디오 지문 생성 (Shazam 유사 접근법)
+    """
+    # 윈도우 크기와 홉 크기 설정
+    frame_size = 2048  # ~46ms at 44.1kHz
+    hop_size = 512     # ~11.6ms at 44.1kHz
     
-    # 모두 같은 값인지 확인
-    if np.all(audio == audio[0]):
-        return False
+    # 알고리즘 초기화
+    window = es.Windowing(type='hann')
+    spectrum = es.Spectrum()
+    spectral_peaks = es.SpectralPeaks(
+        orderBy='magnitude',
+        magnitudeThreshold=0.00001,  # 낮은 에너지 피크 무시
+        maxPeaks=30,                 # 각 프레임당 최대 피크 수
+        minFrequency=100,            # 최소 주파수 (Hz)
+        maxFrequency=5000            # 최대 주파수 (Hz)
+    )
     
-    # 진폭이 너무 작은지 확인 (거의 무음)
-    if np.max(np.abs(audio)) < 1e-6:
-        return False
+    # 지문 데이터 저장소
+    constellation_map = []  # 시간-주파수 좌표
+    peak_pairs = defaultdict(list)   # 피크 쌍을 이용한 해시 테이블
     
-    return True
-
-
-def create_fingerprint(audio):
-    """크로마프린트 기반 지문 생성"""
-    try:
-        # 방법 1: 전체 오디오에 대한 HPCP 특성 추출
-        spectral_peaks = es.SpectralPeaks()
-        hpcp = es.HPCP()
-        
-        # 윈도우 생성
-        window = es.Windowing(type='blackmanharris62')
-        spectrum = es.Spectrum()
-        
-        frame_size = 4096
-        hop_size = 2048
-        
-        chroma_features = []
-        
-        for frame in es.FrameGenerator(audio, frameSize=frame_size, hopSize=hop_size):
-            windowed_frame = window(frame)
-            spectrum_frame = spectrum(windowed_frame)
-            
-            # 스펙트럼 피크 추출
-            freqs, mags = spectral_peaks(spectrum_frame)
-            
-            # HPCP 특성 추출
-            hpcp_vals = hpcp(freqs, mags)
-            
-            # 정규화를 통해 값 범위 조정
-            normalized = hpcp_vals / (np.max(hpcp_vals) + 1e-10)
-            
-            chroma_features.append(normalized)
-        
-        fingerprint = np.array(chroma_features)
-        
-        # 디버깅: 특성 벡터의 값 분포 확인
-        if len(chroma_features) > 0:
-            print(f"첫 번째 특성 벡터: {chroma_features[0]}")
-            print(f"특성 벡터 통계: 최소={np.min(fingerprint)}, 최대={np.max(fingerprint)}")
-        
-        return fingerprint
+    # 프레임 인덱스 (시간 정보로 변환 가능)
+    frame_idx = 0
     
-    except Exception as e:
-        print(f"크로마프린트 생성 중 오류 발생: {e}")
-        import traceback
-        traceback.print_exc()
+    # 각 프레임 처리
+    for frame in es.FrameGenerator(audio, frameSize=frame_size, hopSize=hop_size):
+        # 윈도우 적용 및 스펙트럼 계산
+        windowed_frame = window(frame)
+        spectrum_values = spectrum(windowed_frame)
         
-        # 오류 발생 시 빈 배열 대신 None을 반환하여 문제 표시
-        return None
+        # 스펙트럼 피크 추출
+        frequencies, magnitudes = spectral_peaks(spectrum_values)
+        
+        # 개별 피크 정보 저장 (시간, 주파수, 진폭)
+        time_sec = frame_idx * hop_size / float(sample_rate)
+        
+        for freq, mag in zip(frequencies, magnitudes):
+            # 피크 정보 저장 - (시간, 주파수, 진폭)
+            constellation_map.append((time_sec, freq, mag))
+        
+        # Shazam 스타일의 해싱 - 앵커 포인트와 타겟 포인트 쌍 형성
+        for i, (freq1, mag1) in enumerate(zip(frequencies, magnitudes)):
+            # 앵커 포인트보다 높은 주파수를 가진 타겟 포인트들과 쌍 형성
+            for j in range(i + 1, min(i + 10, len(frequencies))):
+                freq2 = frequencies[j]
+                
+                # 주파수 차이가 너무 작거나 큰 경우 무시
+                if 30 < freq2 - freq1 < 1000:  
+                    # 해시 생성: (앵커주파수, 타겟주파수)
+                    freq_delta = freq2 - freq1
+                    hash_key = f"{int(freq1)},{int(freq_delta)}"
+                    
+                    # 해시 테이블에 시간 정보와 함께 저장
+                    peak_pairs[hash_key].append(time_sec)
+        
+        frame_idx += 1
+    
+    # 지문 정보 반환
+    fingerprint = {
+        "constellation_map": constellation_map,  # 모든 피크 정보
+        "peak_pairs": dict(peak_pairs),          # 해시 테이블
+        "total_frames": frame_idx,
+        "duration": frame_idx * hop_size / float(sample_rate)
+    }
+    
+    # 디버깅 정보
+    print(f"생성된 피크 수: {len(constellation_map)}")
+    print(f"생성된 해시 수: {len(peak_pairs)}")
+    print(f"오디오 길이: {fingerprint['duration']:.2f}초")
+    
+    return fingerprint
 
 
 def save_fingerprint(fingerprint, metadata=None, output_dir="fingerprints", filename=None):
@@ -162,16 +131,11 @@ def save_fingerprint(fingerprint, metadata=None, output_dir="fingerprints", file
     fingerprint_path = os.path.join(output_dir, f"{filename}.pkl")
     
     # 메타데이터와 함께 지문 저장
-    data_to_save = {
-        'fingerprint': fingerprint,
-        'metadata': metadata or {}
-    }
-    
     # 지문 저장 (pickle 형식)
     with open(fingerprint_path, 'wb') as f:
-        pickle.dump(data_to_save, f)
+        pickle.dump(fingerprint, f)
     
     print(f"지문이 저장되었습니다: {fingerprint_path}")
-    print(f"저장된 지문 형태: {fingerprint.shape}")
+    print(f"저장된 지문: {fingerprint}")
     
     return fingerprint_path
