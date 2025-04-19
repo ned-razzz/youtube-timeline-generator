@@ -4,7 +4,7 @@ import librosa
 import io
 import soundfile as sf
 
-def preprocess_audio(audio_chunks: Generator[bytes, Any, None], target_sr=44100, normalize=True):
+def preprocess_audio(audio_chunks: Generator[bytes, Any, None], target_sr=48000, normalize=True):
     """
     오디오 청크를 전처리하는 제너레이터 함수
     
