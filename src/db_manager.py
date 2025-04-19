@@ -2,10 +2,13 @@
 데이터베이스 연결 및 작업을 위한 모듈
 초기화 시점에 즉시 연결을 생성하는 단순화된 구현
 """
+import ast
+import json
 import sqlite3
 from pathlib import Path
 from typing import List, Dict, Optional, TypedDict, Union, Any
 from contextlib import contextmanager
+import numpy as np
 
 # WorldCup 데이터 타입 정의
 class WorldCupData(TypedDict, total=False):
@@ -17,9 +20,8 @@ class WorldCupData(TypedDict, total=False):
 class ChangPopData(TypedDict, total=False):
     name: str
     artist: Optional[str]
-    duration: float
-    fingerprint_method: str
-    fingerprint: bytes
+    metadata: Dict[str, Any]
+    fingerprint: np.ndarray
     worldcup_id: Optional[int]
 
 class DatabaseManager:
@@ -64,8 +66,6 @@ class DatabaseManager:
             data: 삽입할 ChangPop 데이터
                 - name: 곡 이름
                 - artist: 아티스트 이름
-                - duration: 음악 재생 시간(초)
-                - fingerprint_method: 지문 유형
                 - fingerprint: 지문 데이터(바이너리)
                 - worldcup_id: 관련 월드컵 ID
             
@@ -79,11 +79,11 @@ class DatabaseManager:
             cursor.execute(
                 """
                 INSERT INTO changpops
-                (name, artist, duration, fingerprint_method, fingerprint, worldcup_id)
-                VALUES (?, ?, ?, ?, ?, ?)
+                (name, artist, fingerprint, worldcup_id, duration, dtype, shape)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (data['name'], data['artist'], data['duration'], data['fingerprint_method'], 
-                 data['fingerprint'], data['worldcup_id'])
+                (data['name'], data['artist'], data['fingerprint'].tobytes(), data['worldcup_id'],
+                 data['metadata']['duration'], data['metadata']['dtype'],  data['metadata']['shape'])
             )
             return cursor.lastrowid
     
@@ -151,7 +151,7 @@ class DatabaseManager:
         
         cursor.execute(
             """
-            SELECT id, name, artist, duration, fingerprint_method, worldcup_id
+            SELECT id, name, artist, json(metadata) AS metadata, fingerprint, worldcup_id
             FROM changpops
             WHERE worldcup_id = ?
             ORDER BY id
@@ -177,15 +177,19 @@ class DatabaseManager:
         """
         cursor = self.conn.cursor()
         
-        fields = "id, name, artist, duration, fingerprint_method, worldcup_id, fingerprint"
+        fields = "id, name, fingerprint, dtype, shape, duration"
             
         cursor.execute(
             f"SELECT {fields} FROM changpops WHERE id = ?",
             (changpop_id,)
         )
-        
         row = cursor.fetchone()
-        return dict(row) if row else None
+        
+        data = dict(row) if row else None
+        if data:
+            data['shape'] = ast.literal_eval(data['shape'])
+            data['fingerprint'] = np.ndarray(shape=data['shape'], dtype=data['dtype'], buffer=data['fingerprint'])
+        return data
     
     def get_worldcup_details(self, worldcup_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -229,39 +233,6 @@ class DatabaseManager:
         )
         
         return [dict(row) for row in cursor.fetchall()]
-    
-    def batch_insert_changpops(self, changpops: List[ChangPopData]) -> List[int]:
-        """
-        여러 ChangPop 데이터를 한 번의 트랜잭션으로 삽입
-        
-        Args:
-            changpops: 삽입할 ChangPop 데이터 목록. 각 항목은 다음 키를 포함해야 함:
-                      'name', 'artist', 'duration', 'fingerprint_method', 
-                      'fingerprint', 'worldcup_id'
-                      
-        Returns:
-            List[int]: 삽입된 레코드의 ID 목록
-        """
-        with self.transaction() as cursor:
-            ids = []
-            for changpop in changpops:
-                cursor.execute(
-                    """
-                    INSERT INTO changpops 
-                    (name, artist, duration, fingerprint_method, fingerprint, worldcup_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        changpop['name'], 
-                        changpop['artist'], 
-                        changpop['duration'], 
-                        changpop['fingerprint_method'],
-                        changpop['fingerprint'],
-                        changpop['worldcup_id']
-                    )
-                )
-                ids.append(cursor.lastrowid)
-            return ids
     
     def execute_query(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
         """

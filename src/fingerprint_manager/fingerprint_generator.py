@@ -25,19 +25,20 @@ def convert_audio_fingerprint(audio_file):
         # 오디오 길이 계산
         duration = len(audio) / sample_rate
 
-        # 지문 메타데이터
-        metadata = {
-            "duration": duration,
-            "sample_rate":  sample_rate,
-            "channels": 1,  # MonoLoader는 단일 채널 반환
-            "fingerprint_method": "chromaprint",
-            "creation_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        }
-
         # Chromaprint 지문 생성
         fingerprint = create_fingerprint(audio)
 
-        return fingerprint, duration, metadata
+        # 지문 메타데이터
+        metadata = {
+            "duration": round(duration),
+            "sample_rate":  sample_rate,
+            "channels": 1,
+            "method": "chromaprint",
+            "dtype": str(fingerprint.dtype),
+            "shape": str(fingerprint.shape),
+        }
+
+        return fingerprint, metadata
 
     except Exception as e:
         print(f"지문 생성 중 오류 발생: {e}")

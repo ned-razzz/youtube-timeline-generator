@@ -5,13 +5,14 @@ Fingerprint Manager module for processing audio files and storing fingerprints i
 
 import os
 import argparse
-import json
-from typing import Optional, Dict, Any
+import traceback
+from typing import Optional
 import glob
+from pathlib import Path
 
 # Import required modules
 from .fingerprint_generator import convert_audio_fingerprint
-from .db_manager import DatabaseManager, WorldCupData
+from ..db_manager import DatabaseManager, WorldCupData
 
 def process_audio_files(
     directory: str = 'audio', 
@@ -25,9 +26,12 @@ def process_audio_files(
         directory (str): Directory containing WAV audio files
         worldcup_data (Optional[Worldcup]): Worldcups data to link fingerprints to
     """
+
+    audio_path = Path(directory).resolve()
+
     # Ensure directory exists
-    if not os.path.exists(directory):
-        print(f"Directory not found: {directory}")
+    if not os.path.exists(audio_path):
+        print(f"Directory not found: {audio_path}")
         return
     
     # Initialize database manager
@@ -39,8 +43,8 @@ def process_audio_files(
         worldcup_id = db_manager.insert_worldcup(worldcup_data)
     
     # Get all WAV files in the directory
-    wav_files = glob.glob(os.path.join(directory, "*.wav"))
-    
+    wav_files = [str(file) for file in audio_path.glob("*.wav")]
+
     if not wav_files:
         print(f"No WAV files found in {directory}")
         return
@@ -58,10 +62,10 @@ def process_audio_files(
         
         try:
             # Generate fingerprint
-            fingerprint, duration, metadata = convert_audio_fingerprint(wav_file)
+            fingerprint, metadata = convert_audio_fingerprint(wav_file)
             if fingerprint is not None:
                 print(f"생성된 지문 정보:")
-                print(f"- 오디오 길이: {duration:.2f}초")
+                print(f"- 오디오 길이: {metadata['duration']:.2f}초")
                 print(f"- 지문 형태: {fingerprint.shape}")
                 print(f"- 메타데이터: {metadata}")
                 print(f"작업이 완료되었습니다.")
@@ -69,16 +73,16 @@ def process_audio_files(
             # Save to database with file name as name and None as artist
             db_manager.insert_changpop({
                 'name': audio_name,
-                'duration': duration,
                 "artist": None,
-                'fingerprint_method': metadata['fingerprint_method'],
-                'fingerprint': fingerprint.tobytes(),
+                'fingerprint': fingerprint,
+                'metadata': metadata,
                 'worldcup_id': worldcup_id,
             })
 
             processed_count += 1
             print(f"Successfully processed: {filename}")
         except Exception as e:
+            traceback.print_exc()
             print(f"Error processing {filename}: {str(e)}")
     
     print(f"Successfully processed {processed_count} out of {len(wav_files)} files.")
