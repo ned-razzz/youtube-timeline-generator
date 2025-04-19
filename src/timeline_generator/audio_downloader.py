@@ -37,7 +37,7 @@ def download_youtube_audio(
     try:
         # 다운로드 디렉토리 설정
         if download_dir is None:
-            download_dir = Path(__file__).resolve().parent.parent.parent / "downloads"
+            download_dir = Path(__file__).resolve().parent.parent.parent / "download"
         
         # 다운로드 디렉토리 생성 (없는 경우)
         download_dir.mkdir(exist_ok=True, parents=True)
