@@ -11,7 +11,7 @@ import essentia.standard as es
 
 # Import required modules
 from .fingerprint_generator import convert_audio_fingerprint
-from ..db_manager import DatabaseManager
+from ..utils.db_manager import DatabaseManager
 
 def main():
     parser = argparse.ArgumentParser(
