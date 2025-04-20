@@ -7,23 +7,7 @@ import essentia.standard as es
 import numpy as np
 from datetime import datetime
 
-
-def convert_audio_fingerprint(audio_file) -> dict:
-    """
-    오디오 파일에서 Chromaprint 지문 생성
-
-    매개변수:
-        audio_file (str): 오디오 파일 경로
-
-    반환:
-        tuple: (지문 배열, 메타데이터)
-    """
-    # 오디오 파일 목록을 순회하며 오디오 지문 생성
-    fingerprint = get_spectrogram_fingerprint(audio_file)
-
-    return fingerprint
-
-def get_spectrogram_fingerprint(audio, sample_rate=44100):
+def get_spectrogram_fingerprint(audio_data, sample_rate=44100):
     """
     스펙트로그램 피크 기반 오디오 지문 생성 (Shazam 유사 접근법)
     """
@@ -50,7 +34,7 @@ def get_spectrogram_fingerprint(audio, sample_rate=44100):
     frame_idx = 0
     
     # 각 프레임 처리
-    for frame in es.FrameGenerator(audio, frameSize=frame_size, hopSize=hop_size):
+    for frame in es.FrameGenerator(audio_data, frameSize=frame_size, hopSize=hop_size):
         # 윈도우 적용 및 스펙트럼 계산
         windowed_frame = window(frame)
         spectrum_values = spectrum(windowed_frame)
