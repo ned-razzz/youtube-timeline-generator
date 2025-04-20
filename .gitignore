@@ -2,6 +2,5 @@ pretrained_models/
 download/
 output/
 audio/
-audio_detect/
-real_audio/
+/db/
 __pycache__
