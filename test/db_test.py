@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from src.db_manager import DatabaseManager
+from utils.db_manager import DatabaseManager
 import ast
 
 

@@ -64,7 +64,7 @@ def compute_fingerprint_similarity(fp1: np.ndarray, fp2: np.ndarray) -> float:
     return max(0.0, min(1.0, similarity))
 
 import numpy as np
-from src.db_manager import DatabaseManager
+from utils.db_manager import DatabaseManager
 
 db_manager = DatabaseManager()
 

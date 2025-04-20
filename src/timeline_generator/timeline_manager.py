@@ -1,28 +1,18 @@
 from datetime import datetime
+import json
 from matplotlib import pyplot as plt
 import numpy as np
 from collections import Counter
 
-
-def main(long_audio, fingerprints, window_size=15.0, hop_size=5.0, sample_rate=44100, similarity_threshold=0.15):
-    # 각 노래 시작점 탐지
-    print("\n노래 검색 시작...")
-    detect_results = detect_changpops(long_audio, 
-                                      fingerprints, 
-                                      window_size, 
-                                      hop_size,
-                                      sample_rate, 
-                                      similarity_threshold)
-    print("\n검색 완료")
-    
+def handle_timelines(timelines, audio_data):
     # 결과 출력 부분의 오류 수정
-    if detect_results:
+    if timelines:
         print("\n발견된 노래:")
         print("-" * 80)
         print(f"{'시작 시간':^15}{'노래 이름':^30}{'유사도':^15}")
         print("-" * 80)
         
-        for result in detect_results:
+        for result in timelines:
             start_time = result['estimated_start_time']
             song_name = result['song_name']
             similarity = result['similarity']
@@ -35,22 +25,22 @@ def main(long_audio, fingerprints, window_size=15.0, hop_size=5.0, sample_rate=4
             # 수정된 형식 지정자
             print(f"{time_str:^15}{song_name:^30}{similarity:^15.4f}")
         
-        # # 결과 파일로 저장
+        # 결과 파일로 저장
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # result_file = f"song_detection_result_{timestamp}.json"
+        result_file = f"song_detection_result_{timestamp}.json"
         
-        # with open(result_file, 'w', encoding='utf-8') as f:
-        #     json.dump(detect_results, f, indent=2)
+        with open(result_file, 'w', encoding='utf-8') as f:
+            json.dump(timelines, f, indent=2)
         
-        # print(f"\n결과가 {result_file}에 저장되었습니다.")
+        print(f"\n결과가 {result_file}에 저장되었습니다.")
         
         # 결과 시각화
         plt.figure(figsize=(12, 6))
         
         # 긴 오디오의 총 길이
-        total_duration = len(long_audio) / 44100  # 샘플링 레이트 44.1kHz 가정
+        total_duration = len(audio_data) / 44100  # 샘플링 레이트 44.1kHz 가정
         
-        for i, result in enumerate(detect_results):
+        for i, result in enumerate(timelines):
             start_time = result['estimated_start_time']
             song_name = result['song_name']
             similarity = result['similarity']
@@ -88,6 +78,3 @@ def main(long_audio, fingerprints, window_size=15.0, hop_size=5.0, sample_rate=4
         plt.show()
     else:
         print("\n노래를 찾을 수 없습니다.")
-
-if __name__ == "__main__":
-    main()
