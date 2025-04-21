@@ -1,144 +1,157 @@
-
-from typing import Any, Generator
-import numpy as np
-import numba as nb
-from collections import Counter
+from typing import Any, Dict, Generator, List, Tuple, Set
 
 from src.timeline_generator.read_audio import AudioChunk
-
 from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
+from src.timeline_generator.similarity_processor import compute_similarity, compute_time_offsets
+from src.timeline_generator.types import DetectionResult, FingerprintType, TimelineDataType
+
+# 상수 정의
+DEFAULT_SIMILARITY_THRESHOLD = 0.15
+DUPLICATE_TIME_THRESHOLD = 5.0  # 중복 감지 시간 임계값 (초)
+
+def print_detection_result(song_name: str, similarity: float, start_time: float) -> None:
+    """감지 결과를 출력합니다."""
+    print("============================")
+    print(f"발견: {song_name} (유사도: {similarity:.4f}), 시작 시간: {start_time}")
+    print("============================")
+
+def detect_best_match(
+    audio_fingerprint: FingerprintType, 
+    compare_fingerprints: Dict[str, FingerprintType]
+) -> DetectionResult:
+    """
+    노래 목록 중에서 가장 유사도가 높은 노래를 감지합니다.
+    
+    Args:
+        audio_fingerprint: 감지할 오디오의 지문
+        compare_fingerprints: 비교할 노래 지문들의 사전
+        
+    Returns:
+        DetectionResult: 가장 유사한 노래의 감지 결과
+    """
+    best_result = DetectionResult(
+        similarity=0.0,
+        song_name="",
+        offset=0.0
+    )
+    
+    # 각 노래 지문을 순회하면서 지문 유사도 비교
+    for name, compare_fingerprint in compare_fingerprints.items():
+        time_offsets = compute_time_offsets(audio_fingerprint, compare_fingerprint)
+
+        # 가장 많이 발생하는 시간 오프셋 찾기 (일치하는 부분이 있다면)
+        if time_offsets:
+            similarity, offset = compute_similarity(time_offsets, audio_fingerprint, compare_fingerprint)
+        
+            if similarity > best_result.similarity:
+                best_result.similarity = similarity
+                best_result.song_name = name
+                best_result.offset = offset
+
+    return best_result
+
+def is_duplicate_detection(
+    seen_songs: Set[Tuple[str, float]], 
+    song_name: str, 
+    start_time: float
+) -> bool:
+    """
+    현재 감지된 노래가 이미 감지된 노래와 중복되는지 확인합니다.
+    
+    Args:
+        seen_songs: 이미 감지된 노래와 시작 시간 집합
+        song_name: 현재 노래 이름
+        start_time: 현재 노래 시작 시간
+        
+    Returns:
+        bool: 중복되면 True, 아니면 False
+    """
+    for seen_song, seen_time in seen_songs:
+        if song_name == seen_song and abs(start_time - seen_time) < DUPLICATE_TIME_THRESHOLD:
+            return True
+    return False
 
 def detect_timeline(
         audio_chunks: Generator[AudioChunk, Any, None], 
-        detect_fingerprints,
-        chunk_size,
-        similarity_threshold=0.15):
+        detect_fingerprints: Dict[str, FingerprintType],
+        chunk_size: int,
+        similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD
+) -> Generator[TimelineDataType, None, None]:
+    """
+    오디오 청크에서 노래를 감지하고 타임라인을 생성합니다.
     
-    figerprint_generator = FingerprintGenerator()
+    Args:
+        audio_chunks: 오디오 청크 제너레이터
+        detect_fingerprints: 감지할 노래의 지문 사전 {노래이름: 지문}
+        chunk_size: 오디오 청크의 크기 (초)
+        similarity_threshold: 유사도 임계값 (기본값: 0.15)
+        
+    Yields:
+        타임라인 데이터 사전
+    """
+    fingerprint_generator = FingerprintGenerator()
+    
     for chunk in audio_chunks:
         # 현재 윈도우의 지문 생성
-        chunk_fingerprint_data = figerprint_generator.get_spectrogram_fingerprint(chunk.audio, chunk.samplerate)
+        chunk_fingerprint_data = fingerprint_generator.get_spectrogram_fingerprint(
+            chunk.audio, chunk.samplerate
+        )
         
         # 노래 목록 중 최고 유사도 노래 감지
-        best_similarity, best_song_name, best_offset = _detect_songs(
+        detection_result = detect_best_match(
             chunk_fingerprint_data['peak_pairs'], 
             detect_fingerprints
-            )
-
+        )
+        
+        print(f"유사도: {detection_result.similarity:.4f}, {detection_result.offset} ({detection_result.song_name})")
+        
         # 예상 시작 시간 계산
-        audio_start_time = chunk.start_time - best_offset
+        audio_start_time = chunk.start_time - detection_result.offset
         if audio_start_time < 0:
             continue
 
         # 유사도가 임계값을 넘는 경우만 결과에 추가
-        if best_similarity < similarity_threshold:
-            print(f"유사도: {best_similarity:.4f} ({best_song_name})")
+        if detection_result.similarity < similarity_threshold:
             continue
-        else:
-            print("============================")
-            print(f"발견: {best_song_name} (유사도: {best_similarity:.4f}), 시작 시간: {audio_start_time}")
-            print("============================")
-        
+
+        print_detection_result(detection_result.song_name, detection_result.similarity, audio_start_time)
         # 값 저장
         timeline = {
             "window_start": chunk.start_time,
             "window_end": chunk.start_time + chunk_size,
-            "song_name": best_song_name,
-            "similarity": best_similarity,
+            "song_name": detection_result.song_name,
+            "similarity": detection_result.similarity,
             "estimated_start_time": audio_start_time,
         }
         yield timeline
 
-def _detect_songs(audio_fingerprint, compare_fingerprints):
+def analyze_timeline(timelines: List[TimelineDataType]) -> List[TimelineDataType]:
     """
-    노래 목록 중에서 가장 유사도가 높은 노래를 감지.
-    감지 데이터 반환.
-    """
-    best_similarity = 0.0
-    best_song_name = None
-    best_offset = 0.0
+    감지된 타임라인을 분석하여 중복을 제거하고 시간순으로 정렬합니다.
     
-    # 각 노래 지문을 순회하면서 지문 유사도 비교
-    for name, fingerprint in compare_fingerprints.items():
-        time_offsets = _compute_time_offsetes(audio_fingerprint, fingerprint)
-
-        # 가장 많이 발생하는 시간 오프셋 찾기 (일치하는 부분이 있다면)
-        if time_offsets:
-            similarity, offset = _compute_simularity(time_offsets, audio_fingerprint, fingerprint)
+    Args:
+        timelines: 감지된 타임라인 목록
         
-            if similarity > best_similarity:
-                best_similarity = similarity
-                best_song_name = name
-                best_offset = offset
-
-        else:
-            best_similarity = 0
-            best_song_name = name
-            best_offset = 0
-            continue
-
-    return best_similarity, best_song_name, best_offset
-
-# @nb.jit(nopython=True)
-def _compute_time_offsetes(fingerprint1, fingerprint2):
+    Returns:
+        List[TimelineDataType]: 중복이 제거되고 정렬된 타임라인 목록
     """
-    두 오디오 지문 간의 유사도 계산 및 오프셋 반환
-    """
-    # 해시 테이블로부터 일치하는 피크 쌍 찾기
-    matches = []
-    
-    # 각 해시 키에 대해 시간 오프셋 계산
-    time_offsets = []
-    
-    for hash_key, time_points1 in fingerprint1.items():
-        if hash_key in fingerprint2:
-            time_points2 = fingerprint2[hash_key]
-            
-            # 모든 가능한 시간 오프셋 계산
-            for t1 in time_points1:
-                for t2 in time_points2:
-                    # 시간 오프셋 = 두 번째 오디오에서의 시간 - 첫 번째 오디오에서의 시간
-                    time_offset = t2 - t1
-                    time_offsets.append(round(time_offset, 2))  # 반올림하여 비슷한 오프셋 그룹화
-                    matches.append((hash_key, t1, t2))
-    
-    # 가장 많이 발생하는 시간 오프셋 찾기 (일치하는 부분이 있다면)
-    return time_offsets
-
-def _compute_simularity(time_offsets, fingerprint1, fingerprint2):
-    offset_counts = Counter(time_offsets)
-    most_common_offset, most_common_count = offset_counts.most_common(1)[0]
-    
-    # 가장 많이 발생한 오프셋의 비율 계산
-    total_hash_count = min(len(fingerprint1), len(fingerprint2))
-    
-    # 유사도 점수 계산 (정규화된 매치 수)
-    similarity = most_common_count / (total_hash_count * 0.5)  # 50% 이상 매치되면 1.0으로 포화
-    similarity = min(similarity, 1.0)  # 1.0을 초과하지 않도록
-
-    return similarity, most_common_offset
-
-def analyze_timeline(timelines):
     # 유사도 높은 순으로 정렬
     sorted_timelines = sorted(timelines, key=lambda x: x["similarity"], reverse=True)
 
     # 중복 제거 (같은 노래가 여러 윈도우에서 발견될 수 있음)
     filtered_timelines = []
     seen_songs = set()
+    
     for timeline_data in sorted_timelines:
         song_name = timeline_data["song_name"]
         start_time = timeline_data["estimated_start_time"]
         
-        # 이미 처리한 노래와 시작 시간이 가까운 경우 (5초 이내) 건너뛰기
-        skip = False
-        for seen_song, seen_time in seen_songs:
-            if song_name == seen_song and abs(start_time - seen_time) < 5.0:
-                skip = True
-                break
+        # 이미 처리한 노래와 시작 시간이 가까운 경우 건너뛰기
+        if is_duplicate_detection(seen_songs, song_name, start_time):
+            continue
         
-        if not skip:
-            filtered_timelines.append(timeline_data)
-            seen_songs.add((song_name, start_time))
+        filtered_timelines.append(timeline_data)
+        seen_songs.add((song_name, start_time))
     
     # 시작 시간 순으로 정렬
     filtered_timelines.sort(key=lambda x: x["estimated_start_time"])

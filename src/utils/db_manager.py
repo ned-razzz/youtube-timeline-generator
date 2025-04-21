@@ -2,7 +2,6 @@
 데이터베이스 연결 및 작업을 위한 모듈
 초기화 시점에 즉시 연결을 생성하는 단순화된 구현
 """
-import ast
 from dataclasses import dataclass
 import json
 import re
@@ -76,7 +75,7 @@ class DatabaseManager:
         Raises:
             Exception: 데이터베이스 작업 실패 시
         """
-        fingerprint_str = json.dumps( {str(k): v for k, v in data.fingerprint['peak_pairs'].items()})
+        fingerprint_str = json.dumps({str(k): v for k, v in data.fingerprint['peak_pairs'].items()})
         
         with self.transaction() as cursor:
             cursor.execute(
