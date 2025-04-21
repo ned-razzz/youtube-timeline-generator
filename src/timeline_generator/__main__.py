@@ -82,22 +82,20 @@ def main():
         if not audio_path.is_file():
             raise FileNotFoundError(f"오류: 오디오 파일을 찾을 수 없습니다 - {audio_path}")
         
+        audio_chunks = read_audio(audio_path, chunk_size, hop_size)
+        timeline_chunks = detect_timeline(audio_chunks, fingerprints, chunk_size, threshold)
         
+        # 타임라인 수집 및 분석
+        timelines = []
+        for timeline in timeline_chunks:
+            timelines.append(timeline)
+            memory_manager.monitor_memory()
             
-        # audio_chunks = read_audio(audio_path, chunk_size, hop_size)
-        # timeline_chunks = detect_timeline(audio_chunks, fingerprints, chunk_size, threshold)
+        # 중복 제거 및 정렬
+        timelines = analyze_timeline(timelines)
         
-        # # 타임라인 수집 및 분석
-        # timelines = []
-        # for timeline in timeline_chunks:
-        #     timelines.append(timeline)
-        #     memory_manager.monitor_memory()
-            
-        # # 중복 제거 및 정렬
-        # timelines = analyze_timeline(timelines)
-        
-        # # 결과 출력
-        # print_timeline_results(timelines)
+        # 결과 출력
+        print_timeline_results(timelines)
         
     except Exception as e:
         print(f"오류 발생: {e}")

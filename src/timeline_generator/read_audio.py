@@ -81,7 +81,6 @@ def read_audio(
         # 해당 chunk 구간만 로드
         audio_data = es.EasyLoader(
             filename=str(audio_path),
-            sampleRate=audio_samplerate,
             startTime=chunk_start_time,
             endTime=chunk_end_time
         )()
