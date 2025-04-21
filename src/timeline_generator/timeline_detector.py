@@ -1,11 +1,12 @@
 
 from typing import Any, Generator
 import numpy as np
+import numba as nb
 from collections import Counter
 
 from src.timeline_generator.read_audio import AudioChunk
 
-from src.fingerprint_manager.fingerprint_generator import get_spectrogram_fingerprint
+from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
 
 def detect_timeline(
         audio_chunks: Generator[AudioChunk, Any, None], 
@@ -13,9 +14,10 @@ def detect_timeline(
         chunk_size,
         similarity_threshold=0.15):
     
+    figerprint_generator = FingerprintGenerator()
     for chunk in audio_chunks:
         # 현재 윈도우의 지문 생성
-        chunk_fingerprint = get_spectrogram_fingerprint(chunk.audio, chunk.samplerate)
+        chunk_fingerprint = figerprint_generator.get_spectrogram_fingerprint(chunk.audio, chunk.samplerate)
         
         # 노래 목록 중 최고 유사도 노래 감지
         best_similarity, best_song_name, best_offset = _detect_songs(chunk_fingerprint, detect_fingerprints)
@@ -54,15 +56,27 @@ def _detect_songs(chunk_fingerprint, compare_fingerprints):
     
     # 각 노래 지문을 순회하면서 지문 유사도 비교
     for song_name, detect_fingerprint in compare_fingerprints.items():
-        similarity, offset = _compute_simularity(chunk_fingerprint, detect_fingerprint)
+        time_offsets = _compute_time_offsetes(chunk_fingerprint, detect_fingerprint)
+
+        # 가장 많이 발생하는 시간 오프셋 찾기 (일치하는 부분이 있다면)
+        if time_offsets:
+            similarity, offset = _compute_simularity(time_offsets, chunk_fingerprint, detect_fingerprint)
         
-        if similarity > best_similarity:
-            best_similarity = similarity
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_song_name = song_name
+                best_offset = offset
+
+        else:
+            best_similarity = 0
             best_song_name = song_name
-            best_offset = offset
+            best_offset = 0
+            continue
+
     return best_similarity, best_song_name, best_offset
 
-def _compute_simularity(fingerprint1, fingerprint2):
+@nb.jit(nopython=True)
+def _compute_time_offsetes(fingerprint1, fingerprint2):
     """
     두 오디오 지문 간의 유사도 계산 및 오프셋 반환
     """
@@ -85,9 +99,9 @@ def _compute_simularity(fingerprint1, fingerprint2):
                     matches.append((hash_key, t1, t2))
     
     # 가장 많이 발생하는 시간 오프셋 찾기 (일치하는 부분이 있다면)
-    if not time_offsets:
-        return 0.0, 0.0
-    
+    return time_offsets
+
+def _compute_simularity(time_offsets, fingerprint1, fingerprint2):
     offset_counts = Counter(time_offsets)
     most_common_offset, most_common_count = offset_counts.most_common(1)[0]
     
@@ -97,7 +111,7 @@ def _compute_simularity(fingerprint1, fingerprint2):
     # 유사도 점수 계산 (정규화된 매치 수)
     similarity = most_common_count / (total_hash_count * 0.5)  # 50% 이상 매치되면 1.0으로 포화
     similarity = min(similarity, 1.0)  # 1.0을 초과하지 않도록
-    
+
     return similarity, most_common_offset
 
 def analyze_timeline(timelines):
