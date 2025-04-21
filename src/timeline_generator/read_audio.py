@@ -4,6 +4,8 @@ import essentia.standard as es
 from dataclasses import dataclass
 from typing import Iterator
 
+from src.utils import memory_manager
+
 @dataclass
 class AudioChunk:
     """오디오 데이터 청크를 나타내는 데이터 클래스"""
@@ -60,13 +62,18 @@ def read_audio(
     audio_samplerate = int(metadata[-2])
 
     print_audio_info(audio_path.name, audio_length, audio_samplerate, chunk_size, hop_size)
+     
+    # 해당 chunk 구간만 로드
+    full_audio = es.MonoLoader(
+        filename=str(audio_path)
+    )()
+    memory_manager.monitor_memory()
 
     # 청크 위치 계산
     chunk_positions = np.arange(0, audio_length - chunk_size + 1, hop_size)
     chunk_count = len(chunk_positions)
-  
     for idx, chunk_pos in enumerate(chunk_positions):
-        chunk_pos = float(chunk_pos)  # numpy type에서 Python float로 변환
+        chunk_pos = int(chunk_pos)  # numpy type에서 Python float로 변환
         
         # 진행 상황 출력
         print(f"오디오 로드: {idx+1}/{chunk_count} ({(idx+1)/chunk_count*100:.1f}%)")
@@ -78,15 +85,13 @@ def read_audio(
         
         print(f"현재 청크: {chunk_start_time:.3f} ~ {chunk_end_time:.3f} (second) (길이={chunk_duration:.3f}초)")
 
-        # 해당 chunk 구간만 로드
-        audio_data = es.EasyLoader(
-            filename=str(audio_path),
-            startTime=chunk_start_time,
-            endTime=chunk_end_time
-        )()
+        start_index = chunk_start_time * audio_samplerate
+        end_index = chunk_end_time * audio_samplerate
+
+        splited_audio = full_audio[start_index:end_index]
         
-        yield AudioChunk(audio_data, chunk_start_time, chunk_end_time, audio_samplerate)
+        yield AudioChunk(splited_audio, chunk_start_time, chunk_end_time, audio_samplerate)
         
         # 메모리 관리를 위해 명시적으로 삭제
-        del audio_data
+        del splited_audio
         print()
