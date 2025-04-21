@@ -1,73 +1,49 @@
 
+from typing import Any, Generator
 import numpy as np
 from collections import Counter
 
-from ..fingerprint_manager.fingerprint_generator import get_spectrogram_fingerprint
+from src.timeline_generator.read_audio import AudioChunk
+
+from src.fingerprint_manager.fingerprint_generator import get_spectrogram_fingerprint
 
 def detect_timeline(
-        long_audio, 
-        detect_fingerprints, 
-        window_size=15.0, 
-        hop_size=5.0, 
-        sample_rate=44100, 
+        audio_chunks: Generator[AudioChunk, Any, None], 
+        detect_fingerprints,
+        chunk_size,
         similarity_threshold=0.15):
-    # 긴 오디오의 총 길이 (초)
-    total_duration = len(long_audio) / float(sample_rate)
     
-    # hip_size만큼 각 윈도우 분리 
-    window_iter = np.arange(0, total_duration - window_size, hop_size)
-    window_count = len(window_iter)
-    
-    # 작업 정보 출력
-    print(f"긴 오디오 길이: {total_duration:.2f}초")
-    print(f"윈도우 크기: {window_size:.2f}초, 홉 크기: {hop_size:.2f}초")
-    print(f"총 {window_count}개 윈도우 검사")
-
-    # 오디오 탐지 작업 개시
-    timelines = []
-    for i, start_time in enumerate(window_iter):
-        # 진행상황 표시
-        print()
-        print(f"\r윈도우 검사 중: {i+1}/{window_count} ({(i+1)/window_count*100:.1f}%)")
-
-        # 현재 윈도우에 해당하는 오디오 세그먼트 추출
-        start_index = int(start_time * sample_rate)
-        end_index = int((start_time + window_size) * sample_rate)
-        window_audio = long_audio[start_index:end_index]
-        
+    for chunk in audio_chunks:
         # 현재 윈도우의 지문 생성
-        window_fingerprint = get_spectrogram_fingerprint(window_audio)
+        chunk_fingerprint = get_spectrogram_fingerprint(chunk.audio, chunk.samplerate)
         
         # 노래 목록 중 최고 유사도 노래 감지
-        best_similarity, best_song_name, best_offset = _detect_songs(window_fingerprint, detect_fingerprints)
+        best_similarity, best_song_name, best_offset = _detect_songs(chunk_fingerprint, detect_fingerprints)
         
         # 유사도가 임계값을 넘는 경우만 결과에 추가
         if best_similarity < similarity_threshold:
             continue
 
-        # 예상 시작 시간 계산 (윈도우 시작 시간 - 오프셋)
-        song_start_time = start_time - best_offset
-        
-        # 유효한 시작 시간만 기록 (음수가 아닌 경우)
-        if song_start_time < 0:
+        # 예상 시작 시간 계산
+        audio_start_time = chunk.start_time - best_offset
+        if audio_start_time < 0:
             continue
         
         # 값 저장
-        timelines.append({
-            "window_start": start_time,
-            "window_end": start_time + window_size,
+        timeline = {
+            "window_start": chunk.start_time,
+            "window_end": chunk.start_time + chunk_size,
             "song_name": best_song_name,
             "similarity": best_similarity,
-            "estimated_start_time": song_start_time,
-        })
+            "estimated_start_time": audio_start_time,
+        }
 
         print("============================")
-        print(f"발견: {best_song_name} (유사도: {best_similarity:.4f}), 시작 시간: {song_start_time}")
+        print(f"발견: {best_song_name} (유사도: {best_similarity:.4f}), 시작 시간: {audio_start_time}")
         print("============================")
+        yield timeline
 
-    return _analyze_timeline(timelines)
-
-def _detect_songs(window_fingerprint, detect_fingerprints):
+def _detect_songs(chunk_fingerprint, compare_fingerprints):
     """
     노래 목록 중에서 가장 유사도가 높은 노래를 감지.
     감지 데이터 반환.
@@ -77,8 +53,8 @@ def _detect_songs(window_fingerprint, detect_fingerprints):
     best_offset = 0.0
     
     # 각 노래 지문을 순회하면서 지문 유사도 비교
-    for song_name, detect_fingerprint in detect_fingerprints.items():
-        similarity, offset = _compute_simularity(window_fingerprint, detect_fingerprint)
+    for song_name, detect_fingerprint in compare_fingerprints.items():
+        similarity, offset = _compute_simularity(chunk_fingerprint, detect_fingerprint)
         
         if similarity > best_similarity:
             best_similarity = similarity
@@ -124,7 +100,7 @@ def _compute_simularity(fingerprint1, fingerprint2):
     
     return similarity, most_common_offset
 
-def _analyze_timeline(timelines):
+def analyze_timeline(timelines):
     # 유사도 높은 순으로 정렬
     sorted_timelines = sorted(timelines, key=lambda x: x["similarity"], reverse=True)
 

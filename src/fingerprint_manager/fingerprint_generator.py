@@ -75,10 +75,8 @@ def get_spectrogram_fingerprint(audio_data, sample_rate=44100):
     }
     
     # 디버깅 정보
-    print(f"생성된 피크 수: {len(constellation_map)}")
-    print(f"생성된 해시 수: {len(peak_pairs)}")
-    print(f"오디오 길이: {fingerprint['duration']:.2f}초")
-    
+    print(f"피크 수: {len(constellation_map)}, 해시 수: {len(peak_pairs)}")
+
     return fingerprint
 
 
