@@ -1,9 +1,11 @@
 from typing import Any, Dict, Generator, List, Tuple, Set
 
+import numpy as np
+
 from src.timeline_generator.read_audio import AudioChunk
 from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
-from src.timeline_generator.similarity_processor import compute_similarity, compute_time_offsets
-from src.timeline_generator.types import DetectionResult, FingerprintType, TimelineDataType
+from src.timeline_generator.similarity_processor import compute_similarity_numpy, compute_time_offsets
+from src.timeline_generator.types import DetectionResult, FingerprintType, TimelineDataType, convert_to_numba_dict
 
 # 상수 정의
 DEFAULT_SIMILARITY_THRESHOLD = 0.15
@@ -35,18 +37,24 @@ def detect_best_match(
         offset=0.0
     )
     
+    nb_audio_fg = convert_to_numba_dict(audio_fingerprint)
+    nb_song_fgs = {k:convert_to_numba_dict(v) for k,v in compare_fingerprints.items()}
+
     # 각 노래 지문을 순회하면서 지문 유사도 비교
-    for name, compare_fingerprint in compare_fingerprints.items():
-        time_offsets = compute_time_offsets(audio_fingerprint, compare_fingerprint)
+    for name, nb_song_fg in nb_song_fgs.items():
+        time_offsets = compute_time_offsets(nb_audio_fg, nb_song_fg)
+        numpy_offsets = np.array(time_offsets)
 
         # 가장 많이 발생하는 시간 오프셋 찾기 (일치하는 부분이 있다면)
-        if time_offsets:
-            similarity, offset = compute_similarity(time_offsets, audio_fingerprint, compare_fingerprint)
-            print(f"\r{name}: {similarity}, {offset}", end="")
-            if similarity > best_result.similarity:
-                best_result.similarity = similarity
-                best_result.song_name = name
-                best_result.offset = offset
+        similarity, offset = compute_similarity_numpy(numpy_offsets, 
+                                                      len(nb_audio_fg),
+                                                      len(nb_song_fg))
+        print(f"\r{name}: {similarity}, {offset}", end="")
+
+        if similarity > best_result.similarity:
+            best_result.similarity = similarity
+            best_result.song_name = name
+            best_result.offset = offset
     print()
         
     best_result.similarity = best_result.similarity*10
@@ -104,7 +112,6 @@ def detect_timeline(
             chunk_fingerprint_data['peak_pairs'], 
             detect_fingerprints
         )
-        
         print(f"유사도: {detection_result.similarity:.4f}, {detection_result.offset} ({detection_result.song_name})")
         
         # 예상 시작 시간 계산
