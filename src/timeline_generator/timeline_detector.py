@@ -42,12 +42,14 @@ def detect_best_match(
         # 가장 많이 발생하는 시간 오프셋 찾기 (일치하는 부분이 있다면)
         if time_offsets:
             similarity, offset = compute_similarity(time_offsets, audio_fingerprint, compare_fingerprint)
-        
+            print(f"\r{name}: {similarity}, {offset}", end="")
             if similarity > best_result.similarity:
                 best_result.similarity = similarity
                 best_result.song_name = name
                 best_result.offset = offset
-
+    print()
+        
+    best_result.similarity = best_result.similarity*10
     return best_result
 
 def is_duplicate_detection(
@@ -96,7 +98,7 @@ def detect_timeline(
         chunk_fingerprint_data = fingerprint_generator.get_spectrogram_fingerprint(
             chunk.audio, chunk.samplerate
         )
-        
+
         # 노래 목록 중 최고 유사도 노래 감지
         detection_result = detect_best_match(
             chunk_fingerprint_data['peak_pairs'], 

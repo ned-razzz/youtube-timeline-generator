@@ -195,7 +195,7 @@ class DatabaseManager:
 
         pattern = re.compile(r'\((\d+),\s*(\d+)\)')
         restored_fingerprint = {(int(m.group(1)), int(m.group(2))): v 
-                        for k, v in fingerprint["peak_pairs"].items()
+                        for k, v in fingerprint.items()
                         if (m := pattern.match(k))}
         
         return ChangPopData(data['name'], 

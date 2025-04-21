@@ -36,7 +36,7 @@ def parse_arguments():
     parser.add_argument("-w", "--worldcup", required=True, help="감지할 월드컵 ID")
     parser.add_argument("-ch", "--chunk", default=15, type=int, help="각 오디오 청크의 감지 크기 (초)")
     parser.add_argument("-hp", "--hop", default=5, type=int, help="다음 오디오 청크를 로드할 크기 (초)")
-    parser.add_argument("-th", "--threshold", default=0.1, type=float, help="감지할 최소 유사도 임계값")
+    parser.add_argument("-th", "--threshold", default=0.2, type=float, help="감지할 최소 유사도 임계값")
     
     return parser.parse_args()
 
@@ -75,6 +75,7 @@ def main():
 
     try:
         # 월드컵 노래 지문 로드
+        print()
         fingerprints = get_fingerprints(worldcup_id)
         memory_manager.monitor_memory()
         

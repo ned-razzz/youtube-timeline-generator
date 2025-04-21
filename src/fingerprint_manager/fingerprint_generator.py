@@ -62,8 +62,10 @@ class FingerprintGenerator:
             for freq1, freq_delta, time in pairs:
                 key = (freq1, freq_delta)  # 튜플 키
                 peak_pairs[key].append(time)
-
+            
             frame_idx += 1
+            print(f"\r지문 인식 중: {frame_idx}", end="")
+        print()
             
         # 지문 정보 반환
         fingerprint = {
