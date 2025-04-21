@@ -3,29 +3,28 @@
 초기화 시점에 즉시 연결을 생성하는 단순화된 구현
 """
 import ast
+from dataclasses import dataclass
 import json
-import pickle
+import re
 import sqlite3
 from pathlib import Path
-from typing import List, Dict, Optional, TypedDict, Union, Any
+from typing import List, Dict, Optional, Union, Any
 from contextlib import contextmanager
-import numpy as np
 
 # WorldCup 데이터 타입 정의
-class WorldCupData(TypedDict, total=False):
+@dataclass
+class WorldcupData:
     title: str
     genre: str  
     series_number: int
     
 # WorldCup 데이터 타입 정의
-class ChangPopData(TypedDict, total=False):
+@dataclass
+class ChangPopData:
     name: str
+    fingerprint: Dict[str, Any]
     artist: Optional[str]
     worldcup_id: Optional[int]
-    constellation_map: list
-    peak_pairs: dict
-    total_frames: int
-    duration: float
 
 class DatabaseManager:
     """ChangPop 및 WorldCup 데이터 관리를 위한 데이터베이스 관리자 클래스"""
@@ -77,20 +76,20 @@ class DatabaseManager:
         Raises:
             Exception: 데이터베이스 작업 실패 시
         """
+        fingerprint_str = json.dumps( {str(k): v for k, v in data.fingerprint['peak_pairs'].items()})
+        
         with self.transaction() as cursor:
             cursor.execute(
                 """
                 INSERT INTO changpops
-                (name, artist, worldcup_id, constellation_map, peak_pairs, total_frames, duration)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (name, artist, worldcup_id, fingerprint)
+                VALUES (?, ?, ?, ?)
                 """,
-                (data['name'], data['artist'], data['worldcup_id'],
-                 pickle.dumps(data['constellation_map']), pickle.dumps(data['peak_pairs']),
-                 data['total_frames'], data['duration'])
+                (data.name, data.artist, data.worldcup_id, fingerprint_str)
             )
             return cursor.lastrowid
     
-    def insert_worldcup(self, data: WorldCupData) -> int:
+    def insert_worldcup(self, data: WorldcupData) -> int:
         """
         WorldCup 데이터를 데이터베이스에 삽입
         
@@ -113,7 +112,7 @@ class DatabaseManager:
                 (title, genre, series_number)
                 VALUES (?, ?, ?)
                 """,
-                (data['title'], data['genre'], data['series_number'])
+                (data.title, data.genre, data.series_number)
             )
             return cursor.lastrowid
     
@@ -137,7 +136,7 @@ class DatabaseManager:
             )
             return cursor.rowcount > 0
     
-    def load_changpops_by_worldcup(self, worldcup_id: int) -> List[Dict[str, Any]]:
+    def load_changpops_by_worldcup(self, worldcup_id: int):
         """
         특정 WorldCup ID에 속한 모든 ChangPop 데이터 로드
         
@@ -145,7 +144,7 @@ class DatabaseManager:
             worldcup_id: 찾을 WorldCup ID
             
         Returns:
-            List[Dict[str, Any]]: ChangPop 데이터 목록
+            List[ChangPopData]: ChangPop 데이터 목록
         
         Raises:
             Exception: 데이터베이스 작업 실패 시
@@ -153,7 +152,7 @@ class DatabaseManager:
         cursor = self.conn.cursor()
         cursor.execute(
             """
-            SELECT id, name, artist, worldcup_id, constellation_map, peak_pairs, total_frames, duration
+            SELECT id, name, artist, worldcup_id, fingerprint
             FROM changpops
             WHERE worldcup_id = ?
             ORDER BY id
@@ -164,14 +163,11 @@ class DatabaseManager:
         data_list = []
         for row in cursor.fetchall():
             data = dict(row)
-            if data:
-                data['constellation_map'] = pickle.loads(data['constellation_map'])
-                data['peak_pairs'] = pickle.loads(data['peak_pairs'])
-            data_list.append(data)
+            data_list.append(self._convert_changpop_type(data))
         return data_list
         
     
-    def load_changpop_by_id(self, changpop_id: int) -> Optional[Dict[str, Any]]:
+    def load_changpop_by_id(self, changpop_id: int) -> Optional[ChangPopData]:
         """
         ID로 특정 ChangPop 데이터 로드
         
@@ -179,24 +175,34 @@ class DatabaseManager:
             changpop_id: 찾을 ChangPop ID
             
         Returns:
-            Optional[Dict[str, Any]]: ChangPop 데이터 또는 None(찾지 못한 경우)
+            Optional[ChangPopData]: ChangPop 데이터 또는 None(찾지 못한 경우)
         
         Raises:
             Exception: 데이터베이스 작업 실패 시
         """
         cursor = self.conn.cursor()
-        fields = "id, name, fingerprint, dtype, shape, duration"
+        fields = "name, fingerprint"
         cursor.execute(
             f"SELECT {fields} FROM changpops WHERE id = ?",
             (changpop_id,)
         )
         row = cursor.fetchone()
-        
         data = dict(row) if row else None
-        if data:
-            data['constellation_map'] = pickle.loads(data['constellation_map'])
-            data['peak_pairs'] = pickle.loads(data['peak_pairs'])
-        return data
+        return self._convert_changpop_type(data)
+    
+    def _convert_changpop_type(self, data):        
+        # key값이 str인 peek_pairs 해시 테이블을 tuple로 복원
+        fingerprint = json.loads(data['fingerprint'])
+
+        pattern = re.compile(r'\((\d+),\s*(\d+)\)')
+        restored_fingerprint = {(int(m.group(1)), int(m.group(2))): v 
+                        for k, v in fingerprint["peak_pairs"].items()
+                        if (m := pattern.match(k))}
+        
+        return ChangPopData(data['name'], 
+                            restored_fingerprint, 
+                            data['artist'] if 'artist' in data else None, 
+                            data['worldcup_id'] if 'worldcup_id' in data else None)
     
     def get_worldcup_details(self, worldcup_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -220,7 +226,8 @@ class DatabaseManager:
         )
         
         row = cursor.fetchone()
-        return dict(row) if row else None
+        data = dict(row) if row else None
+        return WorldcupData(data['title'], data['genre'], data['series_number'])
     
     def get_all_worldcups(self) -> List[Dict[str, Any]]:
         """

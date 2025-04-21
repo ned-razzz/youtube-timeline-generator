@@ -17,19 +17,27 @@ def detect_timeline(
     figerprint_generator = FingerprintGenerator()
     for chunk in audio_chunks:
         # 현재 윈도우의 지문 생성
-        chunk_fingerprint = figerprint_generator.get_spectrogram_fingerprint(chunk.audio, chunk.samplerate)
+        chunk_fingerprint_data = figerprint_generator.get_spectrogram_fingerprint(chunk.audio, chunk.samplerate)
         
         # 노래 목록 중 최고 유사도 노래 감지
-        best_similarity, best_song_name, best_offset = _detect_songs(chunk_fingerprint, detect_fingerprints)
-        
-        # 유사도가 임계값을 넘는 경우만 결과에 추가
-        if best_similarity < similarity_threshold:
-            continue
+        best_similarity, best_song_name, best_offset = _detect_songs(
+            chunk_fingerprint_data['peak_pairs'], 
+            detect_fingerprints
+            )
 
         # 예상 시작 시간 계산
         audio_start_time = chunk.start_time - best_offset
         if audio_start_time < 0:
             continue
+
+        # 유사도가 임계값을 넘는 경우만 결과에 추가
+        if best_similarity < similarity_threshold:
+            print(f"유사도: {best_similarity:.4f} ({best_song_name})")
+            continue
+        else:
+            print("============================")
+            print(f"발견: {best_song_name} (유사도: {best_similarity:.4f}), 시작 시간: {audio_start_time}")
+            print("============================")
         
         # 값 저장
         timeline = {
@@ -39,13 +47,9 @@ def detect_timeline(
             "similarity": best_similarity,
             "estimated_start_time": audio_start_time,
         }
-
-        print("============================")
-        print(f"발견: {best_song_name} (유사도: {best_similarity:.4f}), 시작 시간: {audio_start_time}")
-        print("============================")
         yield timeline
 
-def _detect_songs(chunk_fingerprint, compare_fingerprints):
+def _detect_songs(audio_fingerprint, compare_fingerprints):
     """
     노래 목록 중에서 가장 유사도가 높은 노래를 감지.
     감지 데이터 반환.
@@ -55,27 +59,27 @@ def _detect_songs(chunk_fingerprint, compare_fingerprints):
     best_offset = 0.0
     
     # 각 노래 지문을 순회하면서 지문 유사도 비교
-    for song_name, detect_fingerprint in compare_fingerprints.items():
-        time_offsets = _compute_time_offsetes(chunk_fingerprint, detect_fingerprint)
+    for name, fingerprint in compare_fingerprints.items():
+        time_offsets = _compute_time_offsetes(audio_fingerprint, fingerprint)
 
         # 가장 많이 발생하는 시간 오프셋 찾기 (일치하는 부분이 있다면)
         if time_offsets:
-            similarity, offset = _compute_simularity(time_offsets, chunk_fingerprint, detect_fingerprint)
+            similarity, offset = _compute_simularity(time_offsets, audio_fingerprint, fingerprint)
         
             if similarity > best_similarity:
                 best_similarity = similarity
-                best_song_name = song_name
+                best_song_name = name
                 best_offset = offset
 
         else:
             best_similarity = 0
-            best_song_name = song_name
+            best_song_name = name
             best_offset = 0
             continue
 
     return best_similarity, best_song_name, best_offset
 
-@nb.jit(nopython=True)
+# @nb.jit(nopython=True)
 def _compute_time_offsetes(fingerprint1, fingerprint2):
     """
     두 오디오 지문 간의 유사도 계산 및 오프셋 반환
@@ -86,9 +90,9 @@ def _compute_time_offsetes(fingerprint1, fingerprint2):
     # 각 해시 키에 대해 시간 오프셋 계산
     time_offsets = []
     
-    for hash_key, time_points1 in fingerprint1["peak_pairs"].items():
-        if hash_key in fingerprint2["peak_pairs"]:
-            time_points2 = fingerprint2["peak_pairs"][hash_key]
+    for hash_key, time_points1 in fingerprint1.items():
+        if hash_key in fingerprint2:
+            time_points2 = fingerprint2[hash_key]
             
             # 모든 가능한 시간 오프셋 계산
             for t1 in time_points1:
@@ -106,7 +110,7 @@ def _compute_simularity(time_offsets, fingerprint1, fingerprint2):
     most_common_offset, most_common_count = offset_counts.most_common(1)[0]
     
     # 가장 많이 발생한 오프셋의 비율 계산
-    total_hash_count = min(len(fingerprint1["peak_pairs"]), len(fingerprint2["peak_pairs"]))
+    total_hash_count = min(len(fingerprint1), len(fingerprint2))
     
     # 유사도 점수 계산 (정규화된 매치 수)
     similarity = most_common_count / (total_hash_count * 0.5)  # 50% 이상 매치되면 1.0으로 포화

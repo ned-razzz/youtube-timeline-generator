@@ -14,20 +14,12 @@ def main():
     parser.add_argument("--url", type=str, help="YouTube URL")
     parser.add_argument("--start", type=str, default="00:00:00", help="시작 시간 (HH:MM:SS)")
     parser.add_argument("--end", type=str, default="00:10:00", help="종료 시간 (HH:MM:SS)")
-    parser.add_argument("--chunk-size", type=int, default=60, 
-                        help="청크 크기(초), 메모리 부족 시 줄이세요 (기본값: 30)")
-    parser.add_argument("--input-file", type=str, help="로컬 오디오 파일 경로 (YouTube 대신 사용)")
-    parser.add_argument("--output-format", type=str, default="wav", help="출력 포맷 (wav, mp3)")
     
     args = parser.parse_args()
     
     print("=======================================")
-    if args.input_file:
-        print(f"로컬 파일: {args.input_file}")
-    else:
-        print(f"URL: {args.url}")
-        print(f"구간: {args.start} ~ {args.end}")
-    print(f"청크 크기: {args.chunk_size}초")
+    print(f"URL: {args.url}")
+    print(f"구간: {args.start} ~ {args.end}")
     
     try:
         # 메모리 모니터링 설정

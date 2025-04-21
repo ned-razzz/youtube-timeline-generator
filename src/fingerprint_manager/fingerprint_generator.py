@@ -64,7 +64,7 @@ class FingerprintGenerator:
                 peak_pairs[key].append(time)
 
             frame_idx += 1
-        
+            
         # 지문 정보 반환
         fingerprint = {
             "peak_pairs": dict(peak_pairs), # 피크 데이터 해시 테이블
@@ -108,8 +108,9 @@ class FingerprintGenerator:
 
         return np.array(selected_freqs), np.array(selected_mags)
     
+    @staticmethod
     @nb.jit(nopython=True)
-    def _create_peak_pairs_fast(self, frequencies, time_sec):
+    def _create_peak_pairs_fast(frequencies, time_sec):
         """Numba로 최적화된 피크 쌍 처리 함수"""
         pairs = []
         for i in range(len(frequencies)):

@@ -3,15 +3,14 @@
 Fingerprint Manager module for processing audio files and storing fingerprints in a database.
 """
 
-import os
 import argparse
-import traceback
+import json
 from pathlib import Path
 import essentia.standard as es
 
 # Import required modules
-from .fingerprint_generator import convert_audio_fingerprint
-from ..utils.db_manager import DatabaseManager
+from .fingerprint_generator import FingerprintGenerator
+from src.utils.db_manager import ChangPopData, DatabaseManager, WorldcupData
 
 def main():
     parser = argparse.ArgumentParser(
@@ -27,7 +26,9 @@ def main():
     db_manager = DatabaseManager()
     
     # Create worldcup record
-    worldcup_data = {'title': args.name, 'genre': args.genre, 'series_number': args.series}
+    worldcup_data = WorldcupData(title=args.name, 
+                                 genre=args.genre, 
+                                 series_number=args.series) 
     worldcup_id = db_manager.insert_worldcup(worldcup_data)
     
     # Process audio files
@@ -42,22 +43,21 @@ def main():
         raise Exception(f"Empty directory. No audio data: {audio_dir}")
     print(f"Whole audio count: {len(audio_paths)}")
 
+    fg = FingerprintGenerator()
     processed_count = 0
     for audio_path in audio_paths:
         print(f"Processing {audio_path}...")
-        audio_loader = es.MonoLoader(filename=audio_path)
-        audio_file = audio_loader()
-
-        fingerprint = convert_audio_fingerprint(audio_file)
-        name = Path(audio_path).stem
+        audio_file = es.MonoLoader(filename=audio_path)()
+        sample_rate = es.MetadataReader(filename=str(audio_path))()[-2]
+        fingerprint = fg.get_spectrogram_fingerprint(audio_file, sample_rate)
 
         print(f"Saving database {audio_path}...")
-        record = {
-            'name': name,
-            "artist": None,
-            'worldcup_id': worldcup_id,
-            **fingerprint
-        }
+        record = ChangPopData(
+            name=Path(audio_path).stem,
+            fingerprint=fingerprint,
+            artist=None,
+            worldcup_id=worldcup_id
+        )
         db_manager.insert_changpop(record)
     
         processed_count += 1
