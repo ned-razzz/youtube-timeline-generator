@@ -4,11 +4,13 @@
 """
 from dataclasses import dataclass
 import json
+import pickle
 import re
 import sqlite3
 from pathlib import Path
 from typing import List, Dict, Optional, Union, Any
 from contextlib import contextmanager
+import zlib
 
 # WorldCup 데이터 타입 정의
 @dataclass
@@ -21,7 +23,7 @@ class WorldcupData:
 @dataclass
 class ChangPopData:
     name: str
-    fingerprint: Dict[str, Any]
+    fingerprint: Dict
     artist: Optional[str]
     worldcup_id: Optional[int]
 
@@ -75,7 +77,8 @@ class DatabaseManager:
         Raises:
             Exception: 데이터베이스 작업 실패 시
         """
-        fingerprint_str = json.dumps({str(k): v for k, v in data.fingerprint['peak_pairs'].items()})
+        serialized = pickle.dumps(data.fingerprint)
+        compressed = zlib.compress(serialized)
         
         with self.transaction() as cursor:
             cursor.execute(
@@ -84,7 +87,7 @@ class DatabaseManager:
                 (name, artist, worldcup_id, fingerprint)
                 VALUES (?, ?, ?, ?)
                 """,
-                (data.name, data.artist, data.worldcup_id, fingerprint_str)
+                (data.name, data.artist, data.worldcup_id, compressed)
             )
             return cursor.lastrowid
     
@@ -162,7 +165,7 @@ class DatabaseManager:
         data_list = []
         for row in cursor.fetchall():
             data = dict(row)
-            data_list.append(self._convert_changpop_type(data))
+            data_list.append(self._convert_changpop_data(data))
         return data_list
         
     
@@ -187,19 +190,22 @@ class DatabaseManager:
         )
         row = cursor.fetchone()
         data = dict(row) if row else None
-        return self._convert_changpop_type(data)
+        return self._convert_changpop_data(data)
     
-    def _convert_changpop_type(self, data):        
-        # key값이 str인 peek_pairs 해시 테이블을 tuple로 복원
-        fingerprint = json.loads(data['fingerprint'])
+    def _convert_changpop_data(self, data):        
+        #데이터 압축 해제 및 역직렬화
+        compressed_fg = data['fingerprint']
+        serialized_fg = zlib.decompress(compressed_fg)
+        fingerprint = pickle.loads(serialized_fg)
 
-        pattern = re.compile(r'\((\d+),\s*(\d+)\)')
-        restored_fingerprint = {(int(m.group(1)), int(m.group(2))): v 
-                        for k, v in fingerprint.items()
-                        if (m := pattern.match(k))}
+        # # key값이 str인 peek_pairs 해시 테이블을 tuple로 복원
+        # pattern = re.compile(r'\((\d+),\s*(\d+)\)')
+        # restored_fingerprint = {(int(m.group(1)), int(m.group(2))): v 
+        #                 for k, v in fingerprint.items()
+        #                 if (m := pattern.match(k))}
         
         return ChangPopData(data['name'], 
-                            restored_fingerprint, 
+                            fingerprint, 
                             data['artist'] if 'artist' in data else None, 
                             data['worldcup_id'] if 'worldcup_id' in data else None)
     

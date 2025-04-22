@@ -1,4 +1,8 @@
-librosa
-spleeter
+numpy
+numba
+
+psutil
+argparse
+
 essentia
 yt_dlp

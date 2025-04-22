@@ -68,11 +68,7 @@ class FingerprintGenerator:
         print()
             
         # 지문 정보 반환
-        fingerprint = {
-            "peak_pairs": dict(peak_pairs), # 피크 데이터 해시 테이블
-            "total_frames": frame_idx,
-            "duration": frame_idx * self.hop_size / float(sample_rate)
-        }
+        fingerprint = dict(peak_pairs) # 피크 데이터 해시 테이블
         
         # 디버깅 정보
         print(f"피크 수: {len(constellation_map)}, 해시 수: {len(peak_pairs)}")

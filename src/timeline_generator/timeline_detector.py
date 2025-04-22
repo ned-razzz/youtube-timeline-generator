@@ -103,13 +103,13 @@ def detect_timeline(
     
     for chunk in audio_chunks:
         # 현재 윈도우의 지문 생성
-        chunk_fingerprint_data = fingerprint_generator.get_spectrogram_fingerprint(
+        chunk_fingerprint = fingerprint_generator.get_spectrogram_fingerprint(
             chunk.audio, chunk.samplerate
         )
 
         # 노래 목록 중 최고 유사도 노래 감지
         detection_result = detect_best_match(
-            chunk_fingerprint_data['peak_pairs'], 
+            chunk_fingerprint, 
             detect_fingerprints
         )
         print(f"유사도: {detection_result.similarity:.4f}, {detection_result.offset} ({detection_result.song_name})")
