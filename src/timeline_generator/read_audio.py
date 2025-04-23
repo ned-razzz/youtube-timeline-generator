@@ -65,7 +65,8 @@ def read_audio(
      
     # 해당 chunk 구간만 로드
     full_audio = es.MonoLoader(
-        filename=str(audio_path)
+        filename=str(audio_path),
+        sampleRate=audio_samplerate
     )()
     memory_manager.monitor_memory()
 

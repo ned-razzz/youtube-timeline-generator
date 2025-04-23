@@ -39,7 +39,7 @@ def parse_arguments():
     parser.add_argument("-w", "--worldcup", required=True, help="감지할 월드컵 ID")
     parser.add_argument("-ch", "--chunk", default=15, type=int, help="각 오디오 청크의 감지 크기 (초)")
     parser.add_argument("-hp", "--hop", default=5, type=int, help="다음 오디오 청크를 로드할 크기 (초)")
-    parser.add_argument("-th", "--threshold", default=0.02, type=float, help="감지할 최소 유사도 임계값")
+    parser.add_argument("-th", "--threshold", default=0.01, type=float, help="감지할 최소 유사도 임계값")
     
     return parser.parse_args()
 
@@ -47,7 +47,7 @@ def print_timeline_results(timelines: List[Dict[str, Any]]) -> None:
     """타임라인 결과를 출력합니다."""
     print()
     print("발견된 노래:")
-    print(f"{'시작 시간':^15}{'노래 이름':^30}{'유사도':^15}")
+    print(f"{'노래 이름':^20}{'시작 시간':^10}{'유사도':^10}")
     print("-" * 80)
     
     for timeline in timelines:
@@ -58,7 +58,7 @@ def print_timeline_results(timelines: List[Dict[str, Any]]) -> None:
         # 시간을 HH:MM:SS 형식으로 변환
         time_str = formatter.format_time(start_time)
         
-        print(f"{time_str:^15}{song_name:^30}{similarity:^15.4f}")
+        print(f"{song_name:^20}{time_str:^10}{similarity*10:^10.2f}")
 
 def main():
     """
@@ -73,12 +73,14 @@ def main():
     hop_size = args.hop
     threshold = args.threshold
     
+    print("epdlxjfmf ")
+    
     # 초기 메모리 상태 확인
     memory_manager.monitor_memory()
 
     try:
         # 월드컵 노래 지문 로드
-        print()
+        print("")
         fingerprints = get_fingerprints(worldcup_id)
         memory_manager.monitor_memory()
         
@@ -96,7 +98,7 @@ def main():
             memory_manager.monitor_memory()
             
         # 중복 제거 및 정렬
-        # timelines = analyze_timeline(timelines)
+        timelines = analyze_timeline(timelines)
         
         # 결과 출력
         print_timeline_results(timelines)

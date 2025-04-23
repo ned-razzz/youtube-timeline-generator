@@ -47,8 +47,8 @@ def main():
     processed_count = 0
     for audio_path in audio_paths:
         print(f"Processing {audio_path}...")
-        audio_file = es.MonoLoader(filename=audio_path)()
         sample_rate = es.MetadataReader(filename=str(audio_path))()[-2]
+        audio_file = es.MonoLoader(filename=audio_path, sampleRate=sample_rate)()
         fingerprint = fg.get_spectrogram_fingerprint(audio_file, sample_rate)
 
         print(f"Saving database {audio_path}...")
