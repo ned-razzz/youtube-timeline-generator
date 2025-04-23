@@ -1,9 +1,9 @@
 """
 YouTube 오디오 추출 및 지문 생성 배치 처리 애플리케이션 메인 모듈
 """
+import re
 import traceback
 import argparse
-import psutil
 import gc
 from pathlib import Path
 import logging
@@ -11,9 +11,10 @@ import os
 import essentia.standard as es
 
 from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
-from src.utils.db_manager import ChangPopData, DatabaseManager, WorldcupData
+from src.utils.file_manager import FingerprintDB
 from src.utils.memory_manager import monitor_memory
-from src.youtube_downloader.audio_downloader import download_youtube_audio
+from src.youtube_downloader.audio_batch_downloader import download_youtube_audio_batch
+# from src.youtube_downloader.audio_downloader import download_youtube_audio
 
 # 로깅 설정
 logging.basicConfig(
@@ -57,7 +58,7 @@ def read_youtube_urls(file_path: str) -> list:
 def process_youtube_urls(
     urls: list,
     download_dir: Path = None
-) -> tuple:
+):
     """
     여러 YouTube URL에서 오디오를 다운로드합니다.
     
@@ -72,48 +73,22 @@ def process_youtube_urls(
     Returns:
         tuple: (성공적으로 다운로드된 파일의 경로 리스트, 실패한 URL 리스트)
     """
-    successful_downloads = []
-    failed_urls = []
-    downloaded_files = []
+    # 메모리 모니터링
+    monitor_memory()
     
-    for i, url in enumerate(urls):
-        try:
-            print(f"[{i+1}/{len(urls)}] 처리 중: {url}")
-            logger.info(f"[{i+1}/{len(urls)}] 처리 중: {url}")
-            
-            # 메모리 모니터링
-            monitor_memory()
-            
-            # YouTube에서 다운로드
-            audio_path, file_name = download_youtube_audio(
-                youtube_url=url, download_dir=download_dir
-            )
-            
-            print(f"✓ 다운로드 완료: {file_name}")
-            logger.info(f"다운로드 완료: {audio_path}")
-            successful_downloads.append(audio_path)
-            downloaded_files.append((audio_path, file_name))
-            
-        except Exception as e:
-            print(f"✗ URL 처리 실패: {url}")
-            logger.error(f"URL 처리 실패: {url}, 오류: {str(e)}")
-            failed_urls.append(url)
-            continue
-        finally:
-            # 메모리 정리
-            gc.collect()
-    
-    # 실패한 URL 출력
-    if failed_urls:
-        logger.warning(f"{len(failed_urls)}개의 URL 처리에 실패했습니다.")
+    # YouTube에서 다운로드
+    downloaded_files = download_youtube_audio_batch(youtube_urls=urls, download_dir=download_dir)
+    if not downloaded_files:
+        raise Exception(f"빈 파일 정보: {downloaded_files}")
+    print(f"✓ 다운로드 완료")
+
+    return downloaded_files
         
-    return successful_downloads, failed_urls, downloaded_files
 
 def generate_fingerprints(
     download_results: list,
-    worldcup_id: int,
-    fingerprint_generator: FingerprintGenerator,
-    db_manager: DatabaseManager
+    audio_dir: str,
+    worldcup_name: str,
 ) -> tuple:
     """
     다운로드된 오디오 파일에서 지문을 생성하고 데이터베이스에 저장합니다.
@@ -127,27 +102,28 @@ def generate_fingerprints(
     Returns:
         tuple: (성공적으로 처리된 파일 수, 실패한 파일 수)
     """
+    db_manager = FingerprintDB()
+    fingerprint_generator = FingerprintGenerator()
+
     processed_count = 0
     failed_count = 0
     
-    for audio_path, file_name in download_results:
+    for download_path in download_results:
         try:
+            #오디오 지문의 이름 가져오기
+            audio_name = Path(download_path).stem
+            filtered_audio_name = re.sub(r'(.*?)\s+\[[^\]]*\]$', r'\1', audio_name)
+            audio_path = audio_dir + '/' + audio_name + '.wav'
+
             print(f"지문 생성 중: {audio_path}...")
-            
             # 오디오 파일 로드 및 지문 생성
-            sample_rate = es.MetadataReader(filename=str(audio_path))()[-2]
+            sample_rate = es.MetadataReader(filename=audio_path)()[-2]
             audio_file = es.MonoLoader(filename=audio_path, sampleRate=sample_rate)()
             fingerprint = fingerprint_generator.get_spectrogram_fingerprint(audio_file, sample_rate)
             
             # 데이터베이스에 저장
             print(f"데이터베이스에 저장 중: {audio_path}...")
-            record = ChangPopData(
-                name=Path(audio_path).stem,
-                fingerprint=fingerprint,
-                artist=None,  # YouTube 다운로드에서는 아티스트 정보가 없을 수 있음
-                worldcup_id=worldcup_id
-            )
-            db_manager.insert_changpop(record)
+            db_manager.insert_changpop(filtered_audio_name, fingerprint, worldcup_name)
             
             processed_count += 1
             print(f"지문 생성 및 저장 완료: {audio_path}")
@@ -164,8 +140,7 @@ def generate_fingerprints(
     
     return processed_count, failed_count
 
-def main():
-    """메인 실행 함수"""
+def get_parameters():
     parser = argparse.ArgumentParser(description="YouTube 오디오 배치 다운로드 및 지문 생성 도구")
     
     # 배치 다운로드 관련 인자
@@ -178,26 +153,25 @@ def main():
                         help="다운로드 후 지문 생성 및 저장 활성화")
     parser.add_argument("-n", "--name", 
                         help="지문 컬렉션 이름 (지문 생성 시 필수)")
-    parser.add_argument("-g", "--genre", 
-                        help="월드컵 장르 (지문 생성 시 필수)")
-    parser.add_argument("-s", "--series", type=int, default=1, 
-                        help="시리즈 번호")
-    
     args = parser.parse_args()
     
     # 지문 생성이 활성화된 경우 필수 인자 확인
-    if args.fingerprint and (not args.name or not args.genre):
+    if args.fingerprint and not args.name:
         parser.error("지문 생성을 위해서는 --name 및 --genre 인자가 필요합니다.")
+
+    return args
+
+def main():
+    """메인 실행 함수"""
+    args = get_parameters()
     
-    # 메인 헤더 출력
+    # 메인 헤더 출력``
     print("=======================================")
     print(f"URL 파일: {args.file}")
     print(f"다운로드 디렉토리: {args.dir if args.dir else '기본값'}")
     if args.fingerprint:
         print("지문 생성: 활성화")
-        print(f"지문 컬렉션 이름: {args.name}")
-        print(f"월드컵 장르: {args.genre}")
-        print(f"시리즈 번호: {args.series}")
+        print(f"지문 월드컵 이름: {args.name}")
     print("=======================================")
     
     try:
@@ -212,47 +186,25 @@ def main():
         download_dir.mkdir(exist_ok=True, parents=True)
         
         # 배치 다운로드 수행
-        successful_downloads, failed_urls, downloaded_files = process_youtube_urls(
+        downloaded_files = process_youtube_urls(
             youtube_urls, 
             download_dir
         )
         
         # 다운로드 결과 출력
         print("=======================================")
-        print(f"다운로드 성공: {len(successful_downloads)}개 파일")
-        
-        if failed_urls:
-            print(f"다운로드 실패: {len(failed_urls)}개 URL")
-            print("실패한 URL 목록:")
-            for url in failed_urls:
-                print(f"- {url}")
+        print(f"다운로드 성공: {len(downloaded_files)}개 파일")
         
         # 지문 생성 및 저장
-        if args.fingerprint and successful_downloads:
+        if args.fingerprint and downloaded_files:
             print("\n=======================================")
             print("지문 생성 및 저장 시작...")
-            
-            # 데이터베이스 관리자 초기화
-            db_manager = DatabaseManager()
-            
-            # 월드컵 레코드 생성
-            worldcup_data = WorldcupData(
-                title=args.name,
-                genre=args.genre,
-                series_number=args.series
-            )
-            worldcup_id = db_manager.insert_worldcup(worldcup_data)
-            print(f"월드컵 ID 생성: {worldcup_id}")
-            
-            # 지문 생성기 초기화
-            fingerprint_generator = FingerprintGenerator()
             
             # 지문 생성 및 저장
             processed_count, failed_count = generate_fingerprints(
                 downloaded_files,
-                worldcup_id,
-                fingerprint_generator,
-                db_manager
+                download_dir.stem,
+                args.name,
             )
             
             # 지문 생성 결과 출력

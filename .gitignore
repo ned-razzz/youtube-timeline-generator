@@ -4,4 +4,6 @@
 /audio/
 /db/
 /test/
+/urls/
+/fingerprints/
 __pycache__

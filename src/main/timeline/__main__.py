@@ -12,6 +12,7 @@ from src.timeline_generator.read_audio import generate_audio_chunks, read_audio
 from src.timeline_generator.timeline_detector import analyze_timeline, detect_timeline
 from src.timeline_generator.write_timelines import print_timeline_results
 from src.utils.db_manager import DatabaseManager
+from src.utils.file_manager import FingerprintDB
 from src.utils.formatter import deformat_time, format_time
 from src.utils.memory_manager import monitor_memory
 from src.youtube_downloader.audio_loader import download_youtube_audio
@@ -42,15 +43,14 @@ def download_youtube(url, start, end, if_trace):
     finally:
         gc.collect()
 
-def get_fingerprints(worldcup_id: int, if_trace):
+def get_fingerprints(worldcup_name: str, if_trace):
     try:
         # DB 데이터 불러오기
-        sqlite_db = DatabaseManager()
-        changpops = sqlite_db.load_changpops_by_worldcup(worldcup_id)
-        if not changpops:
-            raise ValueError(f"해당 worldcup id({worldcup_id})가 존재하지 않습니다.")
+        file_db = FingerprintDB()
+        fingerprints = file_db.load_changpops(worldcup_name)
+        if not fingerprints:
+            raise ValueError(f"해당 worldcup id({worldcup_name})가 존재하지 않습니다.")
         # 데이터 변환
-        fingerprints = {r.name: r.fingerprint for r in changpops}
         return fingerprints
     except Exception as e:
         print(f"DB에서 월드컵 오디오 지문을 가져오는데 실패하였습니다:\n{e}")
@@ -88,7 +88,7 @@ def print_timeline_results(timelines, start_time) -> None:
     start_seconds = deformat_time(start_time)
 
     print("발견된 노래:")
-    print(f"{'노래 이름':^20}{'시작 시간':^10}{'유사도':^10}")
+    print(f"{'노래 이름':^30}{'시작 시간':^10}{'유사도':^10}")
     print("-" * 80)
     for timeline in timelines:
         start_time = timeline['estimated_start_time']
@@ -98,7 +98,7 @@ def print_timeline_results(timelines, start_time) -> None:
         # 시간을 HH:MM:SS 형식으로 변환
         time_str = format_time(start_time + start_seconds)
         
-        print(f"{song_name:^20}{time_str:^10}{similarity*10:^10.2f}")
+        print(f"{song_name:^30}{time_str:^10}{similarity:^10.2f}")
     print("프로그램으로 돌려서 부정확할 수 있습니다.")
 
 def main():
@@ -109,7 +109,7 @@ def main():
     youtube_url = args.url
     start_time = args.start
     end_time = args.end
-    worldcup_id = int(args.worldcup)
+    worldcup_name = args.worldcup
     chunk_size = args.chunk
     threshold = args.threshold
     if_trace_error = args.trace
@@ -128,7 +128,7 @@ def main():
 
     print("\n\n")
     print("DB에서 오디오 지문 불러오는 중...")
-    fingerprints = get_fingerprints(worldcup_id, if_trace_error)
+    fingerprints = get_fingerprints(worldcup_name, if_trace_error)
     monitor_memory()
 
     print("\n\n")
