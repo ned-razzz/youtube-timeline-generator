@@ -1,11 +1,13 @@
 from collections import defaultdict
 import os
 import pickle
-from typing import Any
 import essentia.standard as es
 import numpy as np
 import numba as nb
+from numba import typed, types
 from datetime import datetime
+
+from src.timeline_generator.types import convert_to_numba_dict
 
 
 class FingerprintGenerator:
@@ -67,11 +69,10 @@ class FingerprintGenerator:
             print(f"\r지문 인식 중: {frame_idx}", end="")
         print()
             
-        # 지문 정보 반환
-        fingerprint = dict(peak_pairs) # 피크 데이터 해시 테이블
-        
+        fingerprint = convert_to_numba_dict(dict(peak_pairs))
+
         # 디버깅 정보
-        print(f"피크 수: {len(constellation_map)}, 해시 수: {len(peak_pairs)}")
+        print(f"피크 수: {len(constellation_map)}, 해시 수: {len(fingerprint)}")
 
         return fingerprint
     

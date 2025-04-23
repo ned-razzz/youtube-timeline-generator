@@ -16,10 +16,10 @@ def main():
     parser = argparse.ArgumentParser(
         description="Generate audio fingerprints from WAV files and save them to the database"
     )
-    parser.add_argument("--name", required=True, help="Name for the fingerprint collection")
-    parser.add_argument("--genre", required=True, help="Genre of worldcup")
-    parser.add_argument("--series", help="Series numbering", default=1)
-    parser.add_argument("--dir", help="Directory containing audio files", default="audio")
+    parser.add_argument("-n", "--name", required=True, help="Name for the fingerprint collection")
+    parser.add_argument("-g","--genre", required=True, help="Genre of worldcup")
+    parser.add_argument("-s","--series", help="Series numbering", default=1)
+    parser.add_argument("-d","--dir", help="Directory containing audio files", default="audio")
     args = parser.parse_args()
     
     # Initialize database manager

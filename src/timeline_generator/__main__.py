@@ -1,7 +1,9 @@
 import argparse
 from pathlib import Path
 from typing import Dict, List, Any
+import traceback
 
+from src.timeline_generator.types import convert_to_numba_dict
 from src.utils.db_manager import DatabaseManager
 from src.timeline_generator.read_audio import read_audio
 from src.utils import formatter, memory_manager
@@ -22,11 +24,12 @@ def get_fingerprints(worldcup_id: int) -> Dict[str, Any]:
         ValueError: 해당 월드컵 ID가 존재하지 않는 경우
     """
     sqlite_db = DatabaseManager()
-    results = sqlite_db.load_changpops_by_worldcup(worldcup_id)
-    if not results:
+    changpops = sqlite_db.load_changpops_by_worldcup(worldcup_id)
+
+    if not changpops:
         raise ValueError(f"해당 worldcup id({worldcup_id})가 존재하지 않습니다.")
     
-    fingerprints = {r.name: r.fingerprint for r in results}
+    fingerprints = {r.name: r.fingerprint for r in changpops}
     return fingerprints
 
 def parse_arguments():
@@ -36,7 +39,7 @@ def parse_arguments():
     parser.add_argument("-w", "--worldcup", required=True, help="감지할 월드컵 ID")
     parser.add_argument("-ch", "--chunk", default=15, type=int, help="각 오디오 청크의 감지 크기 (초)")
     parser.add_argument("-hp", "--hop", default=5, type=int, help="다음 오디오 청크를 로드할 크기 (초)")
-    parser.add_argument("-th", "--threshold", default=0.2, type=float, help="감지할 최소 유사도 임계값")
+    parser.add_argument("-th", "--threshold", default=0.02, type=float, help="감지할 최소 유사도 임계값")
     
     return parser.parse_args()
 
@@ -93,13 +96,14 @@ def main():
             memory_manager.monitor_memory()
             
         # 중복 제거 및 정렬
-        timelines = analyze_timeline(timelines)
+        # timelines = analyze_timeline(timelines)
         
         # 결과 출력
         print_timeline_results(timelines)
         
     except Exception as e:
         print(f"오류 발생: {e}")
+        traceback.print_exc()
         return 1
         
     return 0

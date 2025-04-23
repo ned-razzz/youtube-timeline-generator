@@ -3,14 +3,15 @@
 초기화 시점에 즉시 연결을 생성하는 단순화된 구현
 """
 from dataclasses import dataclass
-import json
 import pickle
-import re
 import sqlite3
 from pathlib import Path
 from typing import List, Dict, Optional, Union, Any
 from contextlib import contextmanager
 import zlib
+import numba as nb
+
+from src.timeline_generator.types import convert_to_numba_dict, convert_to_python_dict
 
 # WorldCup 데이터 타입 정의
 @dataclass
@@ -23,7 +24,7 @@ class WorldcupData:
 @dataclass
 class ChangPopData:
     name: str
-    fingerprint: Dict
+    fingerprint: nb.typed.Dict
     artist: Optional[str]
     worldcup_id: Optional[int]
 
@@ -77,8 +78,10 @@ class DatabaseManager:
         Raises:
             Exception: 데이터베이스 작업 실패 시
         """
-        serialized = pickle.dumps(data.fingerprint)
-        compressed = zlib.compress(serialized)
+        # fingerprint 데이터를 직렬화 및 압축시켜서 DB 성능 확보
+        dict_fingerprint = convert_to_python_dict(data.fingerprint)
+        serialized = pickle.dumps(dict_fingerprint)
+        compressed = zlib.compress(serialized, level=9)
         
         with self.transaction() as cursor:
             cursor.execute(
@@ -196,16 +199,11 @@ class DatabaseManager:
         #데이터 압축 해제 및 역직렬화
         compressed_fg = data['fingerprint']
         serialized_fg = zlib.decompress(compressed_fg)
-        fingerprint = pickle.loads(serialized_fg)
-
-        # # key값이 str인 peek_pairs 해시 테이블을 tuple로 복원
-        # pattern = re.compile(r'\((\d+),\s*(\d+)\)')
-        # restored_fingerprint = {(int(m.group(1)), int(m.group(2))): v 
-        #                 for k, v in fingerprint.items()
-        #                 if (m := pattern.match(k))}
+        python_dict_fg = pickle.loads(serialized_fg)
+        numba_dict_fg = convert_to_numba_dict(python_dict_fg)
         
         return ChangPopData(data['name'], 
-                            fingerprint, 
+                            numba_dict_fg, 
                             data['artist'] if 'artist' in data else None, 
                             data['worldcup_id'] if 'worldcup_id' in data else None)
     

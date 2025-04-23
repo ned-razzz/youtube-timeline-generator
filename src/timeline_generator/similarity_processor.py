@@ -6,8 +6,6 @@ import numpy as np
 from numpy.typing import NDArray
 from numba import typed, types
 
-from src.timeline_generator.types import FingerprintType
-
 TIME_OFFSET_PRECISION = 2  # 시간 오프셋 반올림 정밀도
 SIMILARITY_NORMALIZATION_FACTOR = 0.5  # 유사도 정규화 요소
 
@@ -41,38 +39,7 @@ def compute_time_offsets(
                     time_offsets.append(round_offset)
     return time_offsets
 
-def compute_similarity(
-    time_offsets: np.ndarray, 
-    fp1_length: int, 
-    fp2_length: int, 
-    normalization_factor: float = 0.5
-) -> Tuple[float, float]:
-    """NumPy를 사용한 고속 유사도 계산"""
-    
-    # 1. 빈 입력 처리
-    if not len(time_offsets):
-        return 0.0, 0.0
-    
-    # 3. 부동소수점 오프셋을 정수로 변환 (정밀도 유지)
-    scale_factor = 1000  # 밀리초 단위 정밀도
-    scaled_offsets = np.round(time_offsets * scale_factor).astype(np.int64)
-    
-    # 4. NumPy의 고유값 카운팅 기능 사용
-    unique_vals, counts = np.unique(scaled_offsets, return_counts=True)
-    
-    # 5. 최대 발생 횟수와 해당 오프셋 찾기
-    max_idx = np.argmax(counts)
-    most_common_count = counts[max_idx]
-    most_common_offset = unique_vals[max_idx] / scale_factor  # 원래 스케일로 변환
-    
-    # 6. 유사도 계산
-    total_hash_count = min(fp1_length, fp2_length)
-    similarity = most_common_count / (total_hash_count * normalization_factor)
-    similarity = min(similarity, 1.0)  # 최대값 1.0으로 제한
-    
-    return similarity, most_common_offset
-
-# @nb.njit(fastmath=True, parallel=True)
+@nb.njit(fastmath=True, parallel=True)
 def compute_similarity_numpy(
     time_offsets, 
     fp1_length: int, 
@@ -135,3 +102,35 @@ def find_max_of_hash_table(hash_table):
         return 0, 0
     else:
         return max_key, max_value
+    
+
+def compute_similarity(
+    time_offsets: np.ndarray, 
+    fp1_length: int, 
+    fp2_length: int, 
+    normalization_factor: float = 0.5
+) -> Tuple[float, float]:
+    """NumPy를 사용한 고속 유사도 계산"""
+    
+    # 1. 빈 입력 처리
+    if not len(time_offsets):
+        return 0.0, 0.0
+    
+    # 3. 부동소수점 오프셋을 정수로 변환 (정밀도 유지)
+    scale_factor = 1000  # 밀리초 단위 정밀도
+    scaled_offsets = np.round(time_offsets * scale_factor).astype(np.int64)
+    
+    # 4. NumPy의 고유값 카운팅 기능 사용
+    unique_vals, counts = np.unique(scaled_offsets, return_counts=True)
+    
+    # 5. 최대 발생 횟수와 해당 오프셋 찾기
+    max_idx = np.argmax(counts)
+    most_common_count = counts[max_idx]
+    most_common_offset = unique_vals[max_idx] / scale_factor  # 원래 스케일로 변환
+    
+    # 6. 유사도 계산
+    total_hash_count = min(fp1_length, fp2_length)
+    similarity = most_common_count / (total_hash_count * normalization_factor)
+    similarity = min(similarity, 1.0)  # 최대값 1.0으로 제한
+    
+    return similarity, most_common_offset

@@ -1,14 +1,15 @@
 from typing import Any, Dict, Generator, List, Tuple, Set
 
 import numpy as np
+from numba import typed
 
 from src.timeline_generator.read_audio import AudioChunk
 from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
 from src.timeline_generator.similarity_processor import compute_similarity_numpy, compute_time_offsets
-from src.timeline_generator.types import DetectionResult, FingerprintType, TimelineDataType, convert_to_numba_dict
+from src.timeline_generator.types import DetectionResult, TimelineDataType, convert_to_numba_dict
 
 # 상수 정의
-DEFAULT_SIMILARITY_THRESHOLD = 0.15
+DEFAULT_SIMILARITY_THRESHOLD = 0.01
 DUPLICATE_TIME_THRESHOLD = 5.0  # 중복 감지 시간 임계값 (초)
 
 def print_detection_result(song_name: str, similarity: float, start_time: float) -> None:
@@ -18,8 +19,8 @@ def print_detection_result(song_name: str, similarity: float, start_time: float)
     print("============================")
 
 def detect_best_match(
-    audio_fingerprint: FingerprintType, 
-    compare_fingerprints: Dict[str, FingerprintType]
+    audio_fingerprint: typed.Dict, 
+    song_fingerprints: Dict[str, typed.Dict]
 ) -> DetectionResult:
     """
     노래 목록 중에서 가장 유사도가 높은 노래를 감지합니다.
@@ -36,19 +37,16 @@ def detect_best_match(
         song_name="",
         offset=0.0
     )
-    
-    nb_audio_fg = convert_to_numba_dict(audio_fingerprint)
-    nb_song_fgs = {k:convert_to_numba_dict(v) for k,v in compare_fingerprints.items()}
 
     # 각 노래 지문을 순회하면서 지문 유사도 비교
-    for name, nb_song_fg in nb_song_fgs.items():
-        time_offsets = compute_time_offsets(nb_audio_fg, nb_song_fg)
+    for name, song_fingerprint in song_fingerprints.items():
+        time_offsets = compute_time_offsets(audio_fingerprint, song_fingerprint)
         numpy_offsets = np.array(time_offsets)
 
         # 가장 많이 발생하는 시간 오프셋 찾기 (일치하는 부분이 있다면)
         similarity, offset = compute_similarity_numpy(numpy_offsets, 
-                                                      len(nb_audio_fg),
-                                                      len(nb_song_fg))
+                                                      len(audio_fingerprint),
+                                                      len(song_fingerprint))
         print(f"\r{name}: {similarity}, {offset}", end="")
 
         if similarity > best_result.similarity:
@@ -57,7 +55,6 @@ def detect_best_match(
             best_result.offset = offset
     print()
         
-    best_result.similarity = best_result.similarity*10
     return best_result
 
 def is_duplicate_detection(
@@ -83,7 +80,7 @@ def is_duplicate_detection(
 
 def detect_timeline(
         audio_chunks: Generator[AudioChunk, Any, None], 
-        detect_fingerprints: Dict[str, FingerprintType],
+        song_fingerprints: Dict[str, typed.Dict],
         chunk_size: int,
         similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD
 ) -> Generator[TimelineDataType, None, None]:
@@ -110,7 +107,7 @@ def detect_timeline(
         # 노래 목록 중 최고 유사도 노래 감지
         detection_result = detect_best_match(
             chunk_fingerprint, 
-            detect_fingerprints
+            song_fingerprints
         )
         print(f"유사도: {detection_result.similarity:.4f}, {detection_result.offset} ({detection_result.song_name})")
         
