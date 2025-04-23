@@ -50,7 +50,7 @@ def download_youtube_audio(
             title = info.get("title", "Unknown Title")
         
         # 안전한 파일명 생성
-        safe_title = re.sub(r'[^\w\-_. ]', '_', title)
+        safe_title = re.sub(r'[^\w\-_. \[\]]', '_', title)
         file_name = f"{safe_title}"
         file_path = download_dir / f"{file_name}.{audio_format}"
         
