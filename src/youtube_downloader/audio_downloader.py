@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 def download_youtube_audio(
     youtube_url: str, 
-    start_time: str, 
-    end_time: str, 
-    audio_format: str = "mp3", 
+    start_time: str = "00:00:00", 
+    end_time: str = "00:10:00", 
+    audio_format: str = "wav", 
     audio_quality: str = "192",
     download_dir: Optional[Path] = None
 ) -> str:
@@ -50,8 +50,8 @@ def download_youtube_audio(
             title = info.get("title", "Unknown Title")
         
         # 안전한 파일명 생성
-        safe_title = re.sub(r'[^\w\-_.]', '_', title)
-        file_name = f"{safe_title}_{start_time.replace(':', '')}_{end_time.replace(':', '')}"
+        safe_title = re.sub(r'[^\w\-_. ]', '_', title)
+        file_name = f"{safe_title}"
         file_path = download_dir / f"{file_name}.{audio_format}"
         
         logger.info(f"{start_time}부터 {end_time}까지 오디오 다운로드 중: {file_path}")
