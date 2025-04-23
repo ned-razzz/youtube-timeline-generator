@@ -6,14 +6,15 @@ import sys
 import traceback
 import argparse
 import gc
+import os
 
-from src.timeline_generator.read_audio import read_audio
+from src.timeline_generator.read_audio import generate_audio_chunks, read_audio
 from src.timeline_generator.timeline_detector import analyze_timeline, detect_timeline
 from src.timeline_generator.write_timelines import print_timeline_results
 from src.utils.db_manager import DatabaseManager
 from src.utils.formatter import deformat_time, format_time
-from src.youtube_downloader.audio_downloader import download_youtube_audio
 from src.utils.memory_manager import monitor_memory
+from src.youtube_downloader.audio_loader import download_youtube_audio
 
 def parse_arguments():
     """명령줄 인수를 파싱합니다."""
@@ -29,11 +30,10 @@ def parse_arguments():
 
 def download_youtube(url, start, end, if_trace):
     try:
-        audio_path, _ = download_youtube_audio(
-            url, start, end, audio_format="wav"
+        audio_data, metadata = download_youtube_audio(
+            url, start, end
         )
-        print(f"유튜브 오디오를 다운로드 받았습니다: {audio_path}")
-        return audio_path
+        return audio_data, metadata
     except Exception as e:
         print(f"유튜브 오디오 파일을 받아오는 작업을 실패하였습니다:\n{e}")
         if if_trace:
@@ -60,10 +60,9 @@ def get_fingerprints(worldcup_id: int, if_trace):
     finally:
         gc.collect()
 
-def generate_timelines(audio_path, fingerprints, chunk_size, threshold, if_trace):
+def generate_timelines(audio_data, metadata, fingerprints, chunk_size, threshold, if_trace):
     try: 
-        audio_path = Path(audio_path)
-        audio_chunks = read_audio(audio_path, chunk_size, chunk_size)
+        audio_chunks = generate_audio_chunks(audio_data, metadata, chunk_size, chunk_size)
         timeline_chunks = detect_timeline(audio_chunks, fingerprints, chunk_size, threshold)
         
         # 타임라인 수집 및 분석
@@ -115,18 +114,28 @@ def main():
     threshold = args.threshold
     if_trace_error = args.trace
 
+    print("\n\n")
     print("영상 오디오 다운로드 중...")
     print(f"URL: {youtube_url}")
     print(f"구간: {start_time} ~ {end_time}")
-    audio_path = download_youtube(youtube_url, start_time, end_time, if_trace_error)
+    audio_data, metadata = download_youtube(youtube_url, start_time, end_time, if_trace_error)
     monitor_memory()
 
+    print(f"- 오디오 정보:")
+    print(f"\t이름: {metadata['name']}")
+    print(f"\t길이: {metadata['duration']}초")
+    print(f"\t샘플레이트: {metadata['sample_rate']}")
+
+    print("\n\n")
     print("DB에서 오디오 지문 불러오는 중...")
     fingerprints = get_fingerprints(worldcup_id, if_trace_error)
     monitor_memory()
 
+    print("\n\n")
     print("유튜브 타임라인 생성 중...")
-    timelines = generate_timelines(audio_path, fingerprints, chunk_size, threshold, if_trace_error)
+    print(f"\t 청크 크기: {chunk_size}초")
+    print()
+    timelines = generate_timelines(audio_data, metadata, fingerprints, chunk_size, threshold, if_trace_error)
     monitor_memory()
             
     print("유튜브 타임라인을 출력합니다.")
