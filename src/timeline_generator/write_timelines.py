@@ -15,4 +15,4 @@ def print_timeline_results(timelines) -> None:
         # 시간을 HH:MM:SS 형식으로 변환
         time_str = formatter.format_time(start_time)
         
-        print(f"{song_name:^20}{time_str:^10}{similarity*10:^10.2f}")
+        print(f"{song_name:} {time_str:} {similarity*10:.2f}%")

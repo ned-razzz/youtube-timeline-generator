@@ -2,13 +2,18 @@
 파일 시스템 기반 오디오 지문 관리 모듈
 오디오 지문을 .pkl 파일로 저장하고 WorldCup을 폴더로 구현
 """
+import gc
 import pickle
 import os
 from pathlib import Path
+import types
 from typing import List, Dict, Union
 import numba as nb
+import h5py
+import numpy as np
 
 from src.timeline_generator.types import convert_to_python_dict, convert_to_numba_dict
+from src.utils.memory_manager import monitor_system_memory
 
 class FingerprintDB:
     """오디오 지문을 파일 시스템에 저장하는 관리자 클래스"""
@@ -54,7 +59,14 @@ class FingerprintDB:
         
         return str(save_path)
     
-    def load_changpops(self, worldcup: str) -> Dict[str, nb.typed.Dict]:
+    def load_changpop(self, path: Path):
+        with open(path, 'rb') as f:
+            fingerprint_dict = pickle.load(f)
+            fingerprint = convert_to_numba_dict(fingerprint_dict)
+        monitor_system_memory()
+        return fingerprint
+    
+    def load_worldcup(self, worldcup: str) -> Dict[str, nb.typed.Dict]:
         """
         특정 WorldCup 폴더의 모든 오디오 지문 로드
         
@@ -74,14 +86,9 @@ class FingerprintDB:
         # 모든 .pkl 파일을 찾아서 로드
         for file_path in worldcup_path.glob("*.pkl"):
             changpop_name = file_path.stem
-            
-            try:
-                with open(file_path, 'rb') as f:
-                    fingerprint_dict = pickle.load(f)
-                    fingerprint = convert_to_numba_dict(fingerprint_dict)
-                    result[changpop_name] = fingerprint
-            except Exception as e:
-                print(f"Error loading {file_path}: {e}")
-                continue
+            with open(file_path, 'rb') as f:
+                result[changpop_name] = self.load_changpop(file_path)
         
         return result
+    
+    

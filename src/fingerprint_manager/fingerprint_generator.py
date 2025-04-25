@@ -11,28 +11,31 @@ from src.timeline_generator.types import convert_to_numba_dict
 
 
 class FingerprintGenerator:
-    def __init__(self):
+    def __init__(self, frame_size=2048, hop_size=640):
         # 윈도우 크기와 홉 크기 설정
-        self.frame_size = 2048  # ~46ms at 44.1kHz
-        self.hop_size = 512     # ~11.6ms at 44.1kHz
+        self.frame_size = frame_size  # ~42.7ms at 48kHz  
+        self.hop_size = hop_size      # 20ms at 48kHz
         
         # 알고리즘 초기화
         self.window = es.Windowing(type='hann')
         self.spectrum = es.Spectrum()
         self.spectral_peaks = es.SpectralPeaks(
             orderBy='magnitude',
-            magnitudeThreshold=0.00001,  # 낮은 에너지 피크 무시
-            maxPeaks=30,                 # 각 프레임당 최대 피크 수
+            magnitudeThreshold=0.0001,  # 낮은 에너지 피크 무시
+            maxPeaks=25,                 # 각 프레임당 최대 피크 수
             minFrequency=100,            # 최소 주파수 (Hz)
-            maxFrequency=5000            # 최대 주파수 (Hz)
+            maxFrequency=4095            # 최대 주파수 (Hz)
         )
+        
+        # 해시 키 생성을 위한 비트 연산 관련 상수
+        self.FREQ_BITS = 12  # 주파수 값을 위한 비트 수 (최대 4096Hz 범위 표현)
+        self.DELTA_MASK = (1 << 12) - 1  # 주파수 차이를 위한 마스크 (12비트)
 
     def get_spectrogram_fingerprint(self, audio_data, sample_rate=44100):
-        """
+        """`
         스펙트로그램 피크 기반 오디오 지문 생성 (Shazam 유사 접근법)
         """
         # 지문 데이터 저장소
-        constellation_map = []  # 시간-주파수 좌표
         peak_pairs = defaultdict(list) # 피크 쌍을 이용한 해시 테이블
         
         # 프레임 인덱스 (시간 정보로 변환 가능)
@@ -53,26 +56,20 @@ class FingerprintGenerator:
             # 개별 피크 정보 저장 (시간, 주파수, 진폭)
             time_sec = frame_idx * self.hop_size / float(sample_rate)
             
-            for freq, mag in zip(frequencies, magnitudes):
-                # 피크 정보 저장 - (시간, 주파수, 진폭)
-                constellation_map.append((time_sec, freq, mag))
-            
             # Shazam 스타일의 해싱 - 앵커 포인트와 타겟 포인트 쌍 형성
-            pairs = self._create_peak_pairs_fast(frequencies, time_sec)
+            pairs = self._create_peak_pairs_fast(frequencies, time_sec, self.FREQ_BITS, self.DELTA_MASK)
             
-            # 피크 쌍 사전에 저장 (튜플 키 사용)
-            for freq1, freq_delta, time in pairs:
-                key = (freq1, freq_delta)  # 튜플 키
-                peak_pairs[key].append(time)
+            # 피크 쌍 사전에 저장
+            for hash_key, time in pairs:
+                peak_pairs[hash_key].append(time)
             
             frame_idx += 1
             print(f"\r지문 인식 중: {frame_idx}", end="")
-        print()
             
         fingerprint = convert_to_numba_dict(dict(peak_pairs))
 
         # 디버깅 정보
-        print(f"피크 수: {len(constellation_map)}, 해시 수: {len(fingerprint)}")
+        print(f"해시 수: {len(fingerprint)}")
 
         return fingerprint
     
@@ -109,7 +106,7 @@ class FingerprintGenerator:
     
     @staticmethod
     @nb.jit(nopython=True)
-    def _create_peak_pairs_fast(frequencies, time_sec):
+    def _create_peak_pairs_fast(frequencies, time_sec, freq_bits, delta_mask):
         """Numba로 최적화된 피크 쌍 처리 함수"""
         pairs = []
         for i in range(len(frequencies)):
@@ -120,8 +117,13 @@ class FingerprintGenerator:
                 # 주파수 차이가 너무 작거나 큰 경우 무시
                 if 30 < freq2 - freq1 < 1000:
                     freq_delta = freq2 - freq1
-                     # 해시 테이블에 시간 정보와 함께 저장
-                    pairs.append((int(freq1), int(freq_delta), time_sec))
+
+                    # 정수 해시 키 생성 (비트 연산 사용)
+                    # freq1을 상위 비트에, freq_delta를 하위 비트에 배치
+                    hash_key = (int(freq1) << freq_bits) | (int(freq_delta) & delta_mask)
+                    
+                    # 해시 테이블에 시간 정보와 함께 저장
+                    pairs.append((hash_key, time_sec))
         return pairs
 
 

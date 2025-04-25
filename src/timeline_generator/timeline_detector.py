@@ -7,6 +7,7 @@ from src.timeline_generator.read_audio import AudioChunk
 from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
 from src.timeline_generator.similarity_processor import compute_similarity_numpy, compute_time_offsets
 from src.timeline_generator.types import DetectionResult, TimelineDataType, convert_to_numba_dict
+from src.utils.memory_manager import monitor_system_memory
 
 # 상수 정의
 DEFAULT_SIMILARITY_THRESHOLD = 0.01
@@ -47,36 +48,17 @@ def detect_best_match(
         similarity, offset = compute_similarity_numpy(numpy_offsets, 
                                                       len(audio_fingerprint),
                                                       len(song_fingerprint))
-        print(f"\r{name}: {similarity}, {offset}", end="")
+        print("\033[K", end="\r")
+        print(f"{name}: {similarity}, {offset}", end="\r")
 
         if similarity > best_result.similarity:
             best_result.similarity = similarity
             best_result.song_name = name
             best_result.offset = offset
+    print("\033[K", end="\r")
     print()
         
     return best_result
-
-def is_duplicate_detection(
-    seen_songs: Set[Tuple[str, float]], 
-    song_name: str, 
-    start_time: float
-) -> bool:
-    """
-    현재 감지된 노래가 이미 감지된 노래와 중복되는지 확인합니다.
-    
-    Args:
-        seen_songs: 이미 감지된 노래와 시작 시간 집합
-        song_name: 현재 노래 이름
-        start_time: 현재 노래 시작 시간
-        
-    Returns:
-        bool: 중복되면 True, 아니면 False
-    """
-    for seen_song, seen_time in seen_songs:
-        if song_name == seen_song and abs(start_time - seen_time) < DUPLICATE_TIME_THRESHOLD:
-            return True
-    return False
 
 def detect_timeline(
         audio_chunks: Generator[AudioChunk, Any, None], 
@@ -110,6 +92,7 @@ def detect_timeline(
             song_fingerprints
         )
         print(f"유사도: {detection_result.similarity:.4f}, {detection_result.offset} ({detection_result.song_name})")
+        monitor_system_memory()
         
         # 예상 시작 시간 계산
         audio_start_time = chunk.start_time - detection_result.offset
@@ -119,27 +102,32 @@ def detect_timeline(
         # 유사도가 임계값을 넘는 경우만 결과에 추가
         if detection_result.similarity < similarity_threshold:
             continue
-
+        
         print_detection_result(detection_result.song_name, detection_result.similarity, audio_start_time)
         # 값 저장
         timeline = {
-            "window_start": chunk.start_time,
-            "window_end": chunk.start_time + chunk_size,
             "song_name": detection_result.song_name,
             "similarity": detection_result.similarity,
             "estimated_start_time": audio_start_time,
         }
         yield timeline
 
+def is_duplicate_detection(
+    seen_songs: Set[str], 
+    song_name: str, 
+    start_time: float
+) -> bool:
+    """
+    현재 감지된 노래가 이미 감지된 노래와 중복되는지 확인합니다.
+    """
+    for seen_song in seen_songs:
+        if song_name == seen_song:
+            return True
+    return False
+
 def analyze_timeline(timelines: List[TimelineDataType]) -> List[TimelineDataType]:
     """
     감지된 타임라인을 분석하여 중복을 제거하고 시간순으로 정렬합니다.
-    
-    Args:
-        timelines: 감지된 타임라인 목록
-        
-    Returns:
-        List[TimelineDataType]: 중복이 제거되고 정렬된 타임라인 목록
     """
     # 유사도 높은 순으로 정렬
     sorted_timelines = sorted(timelines, key=lambda x: x["similarity"], reverse=True)
@@ -157,7 +145,7 @@ def analyze_timeline(timelines: List[TimelineDataType]) -> List[TimelineDataType
             continue
         
         filtered_timelines.append(timeline_data)
-        seen_songs.add((song_name, start_time))
+        seen_songs.add(song_name)
     
     # 시작 시간 순으로 정렬
     filtered_timelines.sort(key=lambda x: x["estimated_start_time"])

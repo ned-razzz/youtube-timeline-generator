@@ -14,18 +14,19 @@ from src.timeline_generator.write_timelines import print_timeline_results
 from src.utils.db_manager import DatabaseManager
 from src.utils.file_manager import FingerprintDB
 from src.utils.formatter import deformat_time, format_time
-from src.utils.memory_manager import monitor_memory
+from src.utils.memory_manager import monitor_memory, monitor_system_memory
 from src.youtube_downloader.audio_loader import download_youtube_audio
 
 def parse_arguments():
     """명령줄 인수를 파싱합니다."""
     parser = argparse.ArgumentParser(description="유튜브 영상에서 노래 목록의 타임라인 감지")
-    parser.add_argument("-w", "--worldcup", required=True, help="감지할 월드컵 ID")
+    parser.add_argument("-w", "--worldcup", required=True, help="감지할 월드컵 이름")
     parser.add_argument("-u", "--url", type=str, help="월드컵 영상 YouTube URL")
     parser.add_argument("-st", "--start", type=str, default="00:00:00", help="시작 시간 (HH:MM:SS)")
     parser.add_argument("-ed", "--end", type=str, default="00:10:00", help="종료 시간 (HH:MM:SS)")
     parser.add_argument("-ch", "--chunk", default=60, type=int, help="각 오디오 청크의 감지 크기 (초)")
-    parser.add_argument("-th", "--threshold", default=0.01, type=float, help="감지할 최소 유사도 임계값")
+    parser.add_argument("-hp", "--hop", default=30, type=int, help="다음 청크 진행 크기")
+    parser.add_argument("-th", "--threshold", default=0.003, type=float, help="감지할 최소 유사도 임계값")
     parser.add_argument("--trace", action="store_true", help="오류 로그 반환 설정")
     return parser.parse_args()
 
@@ -47,7 +48,7 @@ def get_fingerprints(worldcup_name: str, if_trace):
     try:
         # DB 데이터 불러오기
         file_db = FingerprintDB()
-        fingerprints = file_db.load_changpops(worldcup_name)
+        fingerprints = file_db.load_worldcup(worldcup_name)
         if not fingerprints:
             raise ValueError(f"해당 worldcup id({worldcup_name})가 존재하지 않습니다.")
         # 데이터 변환
@@ -60,9 +61,9 @@ def get_fingerprints(worldcup_name: str, if_trace):
     finally:
         gc.collect()
 
-def generate_timelines(audio_data, metadata, fingerprints, chunk_size, threshold, if_trace):
+def generate_timelines(audio_data, metadata, fingerprints, chunk_size, hop_size, threshold, if_trace):
     try: 
-        audio_chunks = generate_audio_chunks(audio_data, metadata, chunk_size, chunk_size)
+        audio_chunks = generate_audio_chunks(audio_data, metadata, chunk_size, hop_size)
         timeline_chunks = detect_timeline(audio_chunks, fingerprints, chunk_size, threshold)
         
         # 타임라인 수집 및 분석
@@ -98,7 +99,7 @@ def print_timeline_results(timelines, start_time) -> None:
         # 시간을 HH:MM:SS 형식으로 변환
         time_str = format_time(start_time + start_seconds)
         
-        print(f"{song_name:^30}{time_str:^10}{similarity:^10.2f}")
+        print(f"{song_name} {time_str}")
     print("프로그램으로 돌려서 부정확할 수 있습니다.")
 
 def main():
@@ -111,34 +112,38 @@ def main():
     end_time = args.end
     worldcup_name = args.worldcup
     chunk_size = args.chunk
+    hop_size = args.hop
     threshold = args.threshold
     if_trace_error = args.trace
 
-    print("\n\n")
+    monitor_system_memory()
+
+    print()
     print("영상 오디오 다운로드 중...")
     print(f"URL: {youtube_url}")
     print(f"구간: {start_time} ~ {end_time}")
     audio_data, metadata = download_youtube(youtube_url, start_time, end_time, if_trace_error)
-    monitor_memory()
+    monitor_system_memory()
 
     print(f"- 오디오 정보:")
     print(f"\t이름: {metadata['name']}")
     print(f"\t길이: {metadata['duration']}초")
     print(f"\t샘플레이트: {metadata['sample_rate']}")
 
-    print("\n\n")
+    print()
     print("DB에서 오디오 지문 불러오는 중...")
     fingerprints = get_fingerprints(worldcup_name, if_trace_error)
-    monitor_memory()
+    monitor_system_memory()
 
     print("\n\n")
     print("유튜브 타임라인 생성 중...")
     print(f"\t 청크 크기: {chunk_size}초")
     print()
-    timelines = generate_timelines(audio_data, metadata, fingerprints, chunk_size, threshold, if_trace_error)
+    timelines = generate_timelines(audio_data, metadata, fingerprints, chunk_size, hop_size, threshold, if_trace_error)
     monitor_memory()
             
     print("유튜브 타임라인을 출력합니다.")
+    timelines = analyze_timeline(timelines)
     print_timeline_results(timelines, start_time)
 
 if __name__ == "__main__":

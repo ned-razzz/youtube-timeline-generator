@@ -77,7 +77,9 @@ def process_youtube_urls(
     monitor_memory()
     
     # YouTube에서 다운로드
-    downloaded_files = download_youtube_audio_batch(youtube_urls=urls, download_dir=download_dir)
+    downloaded_files = download_youtube_audio_batch(youtube_urls=urls, 
+                                                    download_dir=download_dir,
+                                                    end_time="00:00:30")
     if not downloaded_files:
         raise Exception(f"빈 파일 정보: {downloaded_files}")
     print(f"✓ 다운로드 완료")
