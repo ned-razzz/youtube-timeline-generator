@@ -115,13 +115,12 @@ def detect_timeline(
 def is_duplicate_detection(
     seen_songs: Set[str], 
     song_name: str, 
-    start_time: float
 ) -> bool:
     """
     현재 감지된 노래가 이미 감지된 노래와 중복되는지 확인합니다.
     """
-    for seen_song in seen_songs:
-        if song_name == seen_song:
+    for seen_name in seen_songs:
+        if song_name == seen_name:
             return True
     return False
 
@@ -130,18 +129,19 @@ def analyze_timeline(timelines: List[TimelineDataType]) -> List[TimelineDataType
     감지된 타임라인을 분석하여 중복을 제거하고 시간순으로 정렬합니다.
     """
     # 유사도 높은 순으로 정렬
-    sorted_timelines = sorted(timelines, key=lambda x: x["similarity"], reverse=True)
+    # sorted_timelines = sorted(timelines, key=lambda x: x["similarity"], reverse=True)
+    timelines.sort(key=lambda x: x["estimated_start_time"])
 
     # 중복 제거 (같은 노래가 여러 윈도우에서 발견될 수 있음)
     filtered_timelines = []
     seen_songs = set()
     
-    for timeline_data in sorted_timelines:
+    for timeline_data in timelines:
         song_name = timeline_data["song_name"]
         start_time = timeline_data["estimated_start_time"]
         
-        # 이미 처리한 노래와 시작 시간이 가까운 경우 건너뛰기
-        if is_duplicate_detection(seen_songs, song_name, start_time):
+        # 이미 
+        if is_duplicate_detection(seen_songs, song_name):
             continue
         
         filtered_timelines.append(timeline_data)

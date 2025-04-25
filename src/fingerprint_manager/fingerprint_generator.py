@@ -69,7 +69,7 @@ class FingerprintGenerator:
         fingerprint = convert_to_numba_dict(dict(peak_pairs))
 
         # 디버깅 정보
-        print(f"해시 수: {len(fingerprint)}")
+        print(f"\n해시 수: {len(fingerprint)}")
 
         return fingerprint
     
