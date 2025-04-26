@@ -64,7 +64,7 @@ def get_fingerprints(worldcup_name: str, if_trace):
 def generate_timelines(audio_data, metadata, fingerprints, chunk_size, hop_size, threshold, if_trace):
     try: 
         audio_chunks = generate_audio_chunks(audio_data, metadata, chunk_size, hop_size)
-        timeline_chunks = detect_timeline(audio_chunks, fingerprints, chunk_size, threshold)
+        timeline_chunks = detect_timeline(audio_chunks, fingerprints, hop_size, threshold)
         
         # 타임라인 수집 및 분석
         timelines = []
@@ -100,7 +100,7 @@ def print_timeline_results(timelines, start_time) -> None:
         time_str = format_time(start_time + start_seconds)
         
         print(f"{song_name} {time_str}")
-    print("프로그램으로 돌려서 부정확할 수 있습니다.")
+    print(f"프로그램으로 돌려서 부정확할 수 있습니다: {len(timelines)}개")
 
 def main():
     """메인 실행 함수"""

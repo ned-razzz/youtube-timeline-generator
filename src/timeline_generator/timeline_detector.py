@@ -56,15 +56,14 @@ def detect_best_match(
             best_result.song_name = name
             best_result.offset = offset
     print("\033[K", end="\r")
-    print()
         
     return best_result
 
 def detect_timeline(
         audio_chunks: Generator[AudioChunk, Any, None], 
         song_fingerprints: Dict[str, typed.Dict],
-        chunk_size: int,
-        similarity_threshold: float = DEFAULT_SIMILARITY_THRESHOLD
+        hop_size: int,
+        similarity_threshold: float
 ) -> Generator[TimelineDataType, None, None]:
     """
     오디오 청크에서 노래를 감지하고 타임라인을 생성합니다.
