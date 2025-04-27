@@ -1,18 +1,15 @@
 """
 YouTube 오디오 추출 애플리케이션 메인 모듈
 """
-from pathlib import Path
 import sys
 import traceback
 import argparse
 import gc
-import os
 
-from src.timeline_generator.read_audio import generate_audio_chunks, read_audio
+from src.timeline_generator.read_audio import generate_audio_chunks
 from src.timeline_generator.timeline_detector import analyze_timeline, detect_timeline
 from src.timeline_generator.write_timelines import print_timeline_results
-from src.utils.db_manager import DatabaseManager
-from src.utils.file_manager import FingerprintDB
+from src.utils.file_db import FileDB
 from src.utils.formatter import deformat_time, format_time
 from src.utils.memory_manager import monitor_memory, monitor_system_memory
 from src.youtube_downloader.audio_loader import download_youtube_audio
@@ -47,8 +44,7 @@ def download_youtube(url, start, end, if_trace):
 def get_fingerprints(worldcup_name: str, if_trace):
     try:
         # DB 데이터 불러오기
-        file_db = FingerprintDB()
-        fingerprints = file_db.load_worldcup(worldcup_name)
+        fingerprints = FileDB.load_audioprints(worldcup_name)
         if not fingerprints:
             raise ValueError(f"해당 worldcup id({worldcup_name})가 존재하지 않습니다.")
         # 데이터 변환

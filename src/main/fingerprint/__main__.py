@@ -13,7 +13,7 @@ from typing import Any, List, Tuple
 import essentia.standard as es
 
 from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
-from src.utils.file_manager import FingerprintDB
+from src.utils.file_db import FileDB
 from src.utils.memory_manager import monitor_memory
 from src.youtube_downloader.audio_batch_downloader import download_youtube_audio_batch
 
@@ -116,9 +116,8 @@ def save_fingerprints(
     """
     logger.info(f"오디오 지문 데이터베이스에 저장 중...")
 
-    db_manager = FingerprintDB()
     for name, fingerprint in fingerprints:
-        db_manager.insert_changpop(name, fingerprint, worldcup_name)
+        FileDB.save_audioprint(name, fingerprint, worldcup_name)
         logger.info(f"지문 저장 완료: {name}")
 
 # 메임 함수 인자
