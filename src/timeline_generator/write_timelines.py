@@ -1,6 +1,6 @@
 from src.utils import formatter
 
-def print_timeline_results(timelines) -> None:
+def print_timelines(timelines) -> None:
     """타임라인 결과를 출력합니다."""
     print()
     print("발견된 노래:")

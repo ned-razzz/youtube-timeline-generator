@@ -4,7 +4,7 @@ from typing import Dict, Any
 import traceback
 
 from src.timeline_generator.types import convert_to_numba_dict
-from src.timeline_generator.write_timelines import print_timeline_results
+from src.timeline_generator.write_timelines import print_timelines
 from src.utils.db_manager import DatabaseManager
 from src.timeline_generator.read_audio import read_audio
 from src.utils import memory_manager
@@ -85,7 +85,7 @@ def main():
         timelines = analyze_timeline(timelines)
         
         # 결과 출력
-        print_timeline_results(timelines)
+        print_timelines(timelines)
         
     except Exception as e:
         print(f"오류 발생: {e}")

@@ -99,7 +99,8 @@ def read_audio(
 
 def generate_audio_chunks(
     full_audio: np.ndarray, 
-    audio_metadata,
+    duration,
+    sample_rate,
     chunk_size, 
     hop_size
 ) -> Iterator[AudioChunk]:
@@ -117,9 +118,6 @@ def generate_audio_chunks(
     Raises:
         ValueError: 오디오 파일을 찾을 수 없는 경우
     """
-    duration = audio_metadata['duration']
-    sample_rate = audio_metadata['sample_rate']
-
     # 청크 위치 계산
     chunk_positions = np.arange(0, duration - chunk_size + 1, hop_size)
     chunk_count = len(chunk_positions)

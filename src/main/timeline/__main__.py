@@ -14,6 +14,7 @@ from src.utils.file_db import FileDB
 from src.utils.formatter import Fommatter
 from src.utils.memory_manager import MemoryMonitor
 from src.youtube_downloader.audio_loader import download_youtube_audio
+from src.youtube_downloader.audio import AudioDownloader
 
 IF_TRACE = False
 
@@ -33,12 +34,21 @@ def handle_exception(msg):
         return wrapper
     return decorator
 
+@dataclass
+class AudioMetadata:
+    name: str
+    duration: int
+    sample_rate: str
+
 @handle_exception(msg="유튜브 오디오 파일을 받아오는 작업을 실패하였습니다")
 def download_youtube(url, start, end):
-    audio_data, metadata = download_youtube_audio(
-        url, start, end
-    )
-    return audio_data, metadata
+    AudioDownloader.set_config(start=start, end=end)
+    audio_data, audio_path = AudioDownloader.load_audio(url)
+    if audio_data.size == 0:
+        raise ValueError("오디오 다운로드 실패")
+    name, duration, sample_rate = AudioDownloader.get_audio_metadata(audio_path)
+
+    return audio_data, AudioMetadata(name, duration, sample_rate)
 
 @handle_exception(msg="DB에서 월드컵 오디오 지문을 가져오는데 실패하였습니다")
 def get_fingerprints(worldcup_name: str):
@@ -50,17 +60,30 @@ def get_fingerprints(worldcup_name: str):
     return fingerprints
 
 @handle_exception(msg="오디오 분석 및 타임라인 생성 작업을 실패하였습니다")
-def generate_timelines(audio_data, metadata, fingerprints, chunk_size, hop_size, threshold):
-    audio_chunks = generate_audio_chunks(audio_data, metadata, chunk_size, hop_size)
-    timeline_chunks = detect_timeline(audio_chunks, fingerprints, hop_size, threshold)
+def generate_timelines(audio_data, 
+                       metadata: AudioMetadata, 
+                       fingerprints, 
+                       chunk_size, hop_size, threshold):
+    # 오디오 지연 로딩
+    audio_chunks = generate_audio_chunks(audio_data,
+                                         metadata.duration, 
+                                         metadata.sample_rate, 
+                                         chunk_size, 
+                                         hop_size)
     
-    # 타임라인 수집 및 분석
+    # 오디오에서 타임라인 탐지
+    timeline_chunks = detect_timeline(audio_chunks, 
+                                      fingerprints, 
+                                      hop_size, 
+                                      threshold)
+    
+    # 타임라인 통합
     timelines = []
     for timeline in timeline_chunks:
         timelines.append(timeline)
         
     # 중복 제거 및 정렬
-    timelines = analyze_timeline(timelines)
+    # timelines = analyze_timeline(timelines)
     return timelines
 
 def print_timelines(timelines, audio_start_seconds):
@@ -69,7 +92,7 @@ def print_timelines(timelines, audio_start_seconds):
     print(f"{'노래 이름':^30}{'시작 시간':^10}{'유사도':^10}")
     print("-" * 80)
     for timeline in timelines:
-        start_seconds = timeline['estimated_start_time']
+        start_seconds = timeline['start_time']
         song_name = timeline['song_name']
         similarity = timeline['similarity']
         
@@ -104,6 +127,7 @@ def parse_arguments():
     args = parser.parse_args()
 
     # 오류 로그 출력 설정
+    global IF_TRACE
     IF_TRACE = args.trace
 
     return TypedArgs(youtube_url=args.url, 
@@ -130,9 +154,9 @@ def main():
                                             args.end_time)
 
     print(f"- 오디오 정보:")
-    print(f"\t이름: {metadata['name']}")
-    print(f"\t길이: {metadata['duration']}초")
-    print(f"\t샘플레이트: {metadata['sample_rate']}")
+    print(f"\t이름: {metadata.name}")
+    print(f"\t길이: {metadata.duration}초")
+    print(f"\t샘플레이트: {metadata.sample_rate}")
     MemoryMonitor.monitor_system()
 
     print()
@@ -157,4 +181,7 @@ def main():
     print_timelines(timelines, Fommatter.format_time_to_int( args.start_time))
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        AudioDownloader.clean_out()

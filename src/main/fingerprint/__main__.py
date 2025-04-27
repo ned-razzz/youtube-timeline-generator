@@ -14,7 +14,7 @@ import essentia.standard as es
 
 from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
 from src.utils.file_db import FileDB
-from src.youtube_downloader.audio_batch_downloader import download_youtube_audio_batch
+from src.youtube_downloader.audio import AudioDownloader
 
 # 로깅 설정
 logging.basicConfig(
@@ -56,13 +56,11 @@ def download_youtube_audios(
     urls: list,
 ) -> Path:
     # YouTube URL에서 오디오 다운로드
-    downloads_count, download_dir = download_youtube_audio_batch(youtube_urls=urls, 
-                                                start_time="00:00:00",
-                                                end_time="00:00:30")
+    AudioDownloader.set_config(start="00:00:00", end="00:00:30")
+
+    downloads_count = AudioDownloader.load_audio_batch(urls)
     if downloads_count == 0:
         raise Exception("오디오를 하나 이상 다운로드 받지 못했습니다.")
-    return download_dir
-        
 
 def generate_fingerprints(
     audio_dir: Path,
@@ -76,17 +74,17 @@ def generate_fingerprints(
     fingerprints = [] # 오디오 지문 저장 변수
     
     # 디렉토리에서 오디오 파일들을 읽어서 오디오 지문 변환
-    for audio_path in audio_dir.glob("*.wav"):
+    for audio_path in AudioDownloader.get_downloads_path():
         #오디오의 노래 제목 가져오기
         audio_name = re.sub(r'(.*?)\s+\[[^\]]*\]$', r'\1', Path(audio_path).stem)
 
         try:
             # 오디오 파일 로드 및 지문 생성
-            sample_rate = es.MetadataReader(filename=str(audio_path))()[-2]
-            audio_file = es.MonoLoader(filename=str(audio_path), sampleRate=sample_rate)()
+            _, _, sample_rate = AudioDownloader.get_audio_metadata(audio_path)
+            audio_path = es.MonoLoader(filename=str(audio_path), sampleRate=sample_rate)()
 
             # 오디오 지문 생성
-            fingerprint = fingerprint_generator.get_spectrogram_fingerprint(audio_file, sample_rate)
+            fingerprint = fingerprint_generator.get_spectrogram_fingerprint(audio_path, sample_rate)
         except Exception as e:
             # 지문 생성 실패 시
             failed_count += 1
@@ -152,19 +150,19 @@ def main():
     
     # 유튜브 오디오 배치 다운로드 수행
     print()
-    audio_dir = download_youtube_audios(youtube_urls)
+    download_youtube_audios(youtube_urls)
 
     # 오디오 지문 생성
     try:
         print()
-        fingerprints = generate_fingerprints(audio_dir)
+        fingerprints = generate_fingerprints()
 
         # 오디오 지문 저장
         print()
         save_fingerprints(fingerprints, args.worldcup_name)
     finally:
         # 다운로드한 오디오 삭제
-        shutil.rmtree(audio_dir)
+        AudioDownloader.clean_out()
 
 if __name__ == "__main__":
     try:
