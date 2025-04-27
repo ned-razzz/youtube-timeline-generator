@@ -7,7 +7,7 @@ from src.timeline_generator.read_audio import AudioChunk
 from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
 from src.timeline_generator.similarity_processor import compute_similarity_numpy, compute_time_offsets
 from src.timeline_generator.types import DetectionResult, TimelineDataType, convert_to_numba_dict
-from src.utils.memory_manager import monitor_system_memory
+from src.utils.memory_manager import MemoryMonitor
 
 # 상수 정의
 DEFAULT_SIMILARITY_THRESHOLD = 0.01
@@ -91,7 +91,7 @@ def detect_timeline(
             song_fingerprints
         )
         print(f"유사도: {detection_result.similarity:.4f}, {detection_result.offset} ({detection_result.song_name})")
-        monitor_system_memory()
+        MemoryMonitor.monitor_system()
         
         # 예상 시작 시간 계산
         audio_start_time = chunk.start_time - detection_result.offset

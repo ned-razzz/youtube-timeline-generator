@@ -9,7 +9,7 @@ import numba as nb
 import logging
 
 from src.timeline_generator.types import convert_to_python_dict, convert_to_numba_dict
-from src.utils.memory_manager import monitor_system_memory
+from src.utils.memory_manager import MemoryMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class FileDB:
 
         # 출력 
         logger.info(f"오디오 지문 로드: {file_path.stem}")
-        monitor_system_memory()
+        MemoryMonitor.monitor_system()
         return audioprint
     
     @classmethod

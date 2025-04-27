@@ -8,10 +8,10 @@ import gc
 
 from src.timeline_generator.read_audio import generate_audio_chunks
 from src.timeline_generator.timeline_detector import analyze_timeline, detect_timeline
-from src.timeline_generator.write_timelines import print_timeline_results
+from src.timeline_generator.write_timelines import print_timelines
 from src.utils.file_db import FileDB
-from src.utils.formatter import deformat_time, format_time
-from src.utils.memory_manager import monitor_memory, monitor_system_memory
+from src.utils.formatter import Fommatter
+from src.utils.memory_manager import MemoryMonitor
 from src.youtube_downloader.audio_loader import download_youtube_audio
 
 def parse_arguments():
@@ -66,7 +66,6 @@ def generate_timelines(audio_data, metadata, fingerprints, chunk_size, hop_size,
         timelines = []
         for timeline in timeline_chunks:
             timelines.append(timeline)
-            monitor_memory()
             
         # 중복 제거 및 정렬
         timelines = analyze_timeline(timelines)
@@ -80,9 +79,9 @@ def generate_timelines(audio_data, metadata, fingerprints, chunk_size, hop_size,
     finally:
         gc.collect()
 
-def print_timeline_results(timelines, start_time) -> None:
+def print_timelines(timelines, start_time):
     """타임라인 결과를 출력합니다."""
-    start_seconds = deformat_time(start_time)
+    start_seconds = Fommatter.format_time_to_int(start_time)
 
     print("발견된 노래:")
     print(f"{'노래 이름':^30}{'시작 시간':^10}{'유사도':^10}")
@@ -93,7 +92,7 @@ def print_timeline_results(timelines, start_time) -> None:
         similarity = timeline['similarity']
         
         # 시간을 HH:MM:SS 형식으로 변환
-        time_str = format_time(start_time + start_seconds)
+        time_str = Fommatter.format_time_to_str(start_time + start_seconds)
         
         print(f"{song_name} {time_str}")
     print(f"프로그램으로 돌려서 부정확할 수 있습니다: {len(timelines)}개")
@@ -112,35 +111,34 @@ def main():
     threshold = args.threshold
     if_trace_error = args.trace
 
-    monitor_system_memory()
+    MemoryMonitor.monitor_system()
 
     print()
     print("영상 오디오 다운로드 중...")
     print(f"URL: {youtube_url}")
     print(f"구간: {start_time} ~ {end_time}")
     audio_data, metadata = download_youtube(youtube_url, start_time, end_time, if_trace_error)
-    monitor_system_memory()
 
     print(f"- 오디오 정보:")
     print(f"\t이름: {metadata['name']}")
     print(f"\t길이: {metadata['duration']}초")
     print(f"\t샘플레이트: {metadata['sample_rate']}")
+    MemoryMonitor.monitor_system()
 
     print()
     print("DB에서 오디오 지문 불러오는 중...")
     fingerprints = get_fingerprints(worldcup_name, if_trace_error)
-    monitor_system_memory()
+    MemoryMonitor.monitor_system()
 
     print("\n\n")
     print("유튜브 타임라인 생성 중...")
     print(f"\t 청크 크기: {chunk_size}초")
     print()
     timelines = generate_timelines(audio_data, metadata, fingerprints, chunk_size, hop_size, threshold, if_trace_error)
-    monitor_memory()
             
     print("유튜브 타임라인을 출력합니다.")
     timelines = analyze_timeline(timelines)
-    print_timeline_results(timelines, start_time)
+    print_timelines(timelines, start_time)
 
 if __name__ == "__main__":
     main()

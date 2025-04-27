@@ -14,7 +14,6 @@ import essentia.standard as es
 
 from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
 from src.utils.file_db import FileDB
-from src.utils.memory_manager import monitor_memory
 from src.youtube_downloader.audio_batch_downloader import download_youtube_audio_batch
 
 # 로깅 설정
@@ -53,7 +52,7 @@ def read_youtube_urls(file_path: Path) -> list:
     
     return urls
 
-def download_youtube_audio(
+def download_youtube_audios(
     urls: list,
 ) -> Path:
     # YouTube URL에서 오디오 다운로드
@@ -153,7 +152,7 @@ def main():
     
     # 유튜브 오디오 배치 다운로드 수행
     print()
-    audio_dir = download_youtube_audio(youtube_urls)
+    audio_dir = download_youtube_audios(youtube_urls)
 
     # 오디오 지문 생성
     try:
