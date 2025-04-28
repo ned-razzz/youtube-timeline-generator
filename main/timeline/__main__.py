@@ -7,13 +7,13 @@ import traceback
 import argparse
 import gc
 
-from src.timeline_generator.read_audio import read_audio
-from src.timeline_generator.timeline_detector import TimelineDetector
-from src.timeline_generator.timeline_manager import print_not_detected, print_timelines
+from src.timeline.read_audio import read_audio
+from src.timeline.timeline_detector import TimelineDetector
+from src.timeline.timeline_manager import print_not_detected, print_timelines
 from src.utils.file_db import FileDB
 from src.utils.formatter import TimeFormatter
 from src.utils.memory_manager import MemoryMonitor
-from src.youtube_downloader.audio import AudioDownloader
+from src.youtube_download.audio import AudioDownloader
 
 IF_TRACE = False
 

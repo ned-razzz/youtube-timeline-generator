@@ -11,9 +11,9 @@ import logging
 from typing import Any, List, Tuple
 import essentia.standard as es
 
-from src.audioprint_manager.audioprint_generator import AudioprintGenerator
+from src.audioprint.audioprint_generator import AudioprintGenerator
 from src.utils.file_db import FileDB
-from src.youtube_downloader.audio import AudioDownloader
+from src.youtube_download.audio import AudioDownloader
 
 # 로깅 설정
 logging.basicConfig(

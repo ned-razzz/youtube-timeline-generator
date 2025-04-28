@@ -4,9 +4,9 @@ from typing import Any, Dict, Generator, List
 import numpy as np
 import numba as nb
 
-from src.timeline_generator.read_audio import AudioChunk
-from src.audioprint_manager.audioprint_generator import AudioprintGenerator
-from src.timeline_generator.similarity_processor import compute_similarity, compute_time_offsets
+from src.timeline.read_audio import AudioChunk
+from src.audioprint.audioprint_generator import AudioprintGenerator
+from src.timeline.similarity_processor import compute_similarity, compute_time_offsets
 from src.utils.formatter import TimeFormatter
 from src.utils.types import TimelineData
 from src.utils.memory_manager import MemoryMonitor
