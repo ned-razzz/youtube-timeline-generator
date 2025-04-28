@@ -9,7 +9,7 @@ from pathlib import Path
 import essentia.standard as es
 
 # Import required modules
-from .fingerprint_generator import FingerprintGenerator
+from .audioprint_generator import FingerprintGenerator
 from src.utils.db_manager import ChangPopData, DatabaseManager, WorldcupData
 
 def main():

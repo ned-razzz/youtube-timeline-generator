@@ -11,7 +11,7 @@ import logging
 from typing import Any, List, Tuple
 import essentia.standard as es
 
-from src.fingerprint_manager.fingerprint_generator import AudioprintGenerator
+from src.audioprint_manager.audioprint_generator import AudioprintGenerator
 from src.utils.file_db import FileDB
 from src.youtube_downloader.audio import AudioDownloader
 
