@@ -7,7 +7,7 @@ import traceback
 import argparse
 import gc
 
-from src.timeline_generator.read_audio import generate_audio_chunks
+from src.timeline_generator.read_audio import read_audio
 from src.timeline_generator.timeline_detector import TimelineDetector
 from src.timeline_generator.timeline_manager import print_not_detected, print_timelines
 from src.utils.file_db import FileDB
@@ -50,7 +50,7 @@ def download_youtube(url, start, end):
     return audio_data, AudioMetadata(name, duration, sample_rate)
 
 @handle_exception(msg="DB에서 월드컵 오디오 지문을 가져오는데 실패하였습니다")
-def get_fingerprints(worldcup_name: str):
+def get_audioprints(worldcup_name: str):
     # DB 데이터 불러오기
     fingerprints = FileDB.load_audioprints(worldcup_name)
     if not fingerprints:
@@ -64,11 +64,11 @@ def generate_timelines(audio_data,
                        fingerprints, 
                        chunk_size, hop_size, threshold):
     # 오디오 지연 로딩
-    audio_chunks = generate_audio_chunks(audio_data,
-                                         metadata.duration, 
-                                         metadata.sample_rate, 
-                                         chunk_size, 
-                                         hop_size)
+    audio_chunks = read_audio(audio_data,
+                              metadata.duration, 
+                              metadata.sample_rate, 
+                              chunk_size, 
+                              hop_size)
     
     # 오디오에서 타임라인 탐지
     timeline_chunks = TimelineDetector.detect_timeline(audio_chunks, 
@@ -100,7 +100,7 @@ def parse_arguments():
     parser.add_argument("-ed", "--end", type=str, default="00:10:00", help="종료 시간 (HH:MM:SS)")
     parser.add_argument("-ch", "--chunk", default=60, type=int, help="각 오디오 청크의 감지 크기 (초)")
     parser.add_argument("-hp", "--hop", default=30, type=int, help="다음 청크 진행 크기")
-    parser.add_argument("-th", "--threshold", default=0.004, type=float, help="감지할 최소 유사도 임계값")
+    parser.add_argument("-th", "--threshold", default=0.001, type=float, help="감지할 최소 유사도 임계값")
     parser.add_argument("--trace", action="store_true", help="오류 로그 반환 설정")
     args = parser.parse_args()
 
@@ -139,24 +139,26 @@ def main():
 
     print()
     print("DB에서 오디오 지문 불러오는 중...")
-    fingerprints = get_fingerprints(args.worldcup)
+    audioprints = get_audioprints(args.worldcup)
     MemoryMonitor.monitor_system()
 
-    print("\n\n")
+    print("\n")
     print("유튜브 타임라인 생성 중...")
     print(f"\t 청크 크기: {args.chunk_size}초")
     print(f"\t 청크 진행 크기: {args.hop_size}초")
     print()
-    timelines = generate_timelines(audio_data, 
+    timelines = generate_timelines(audio_data,
                                    metadata, 
-                                   fingerprints, 
+                                   audioprints, 
                                    args.chunk_size, 
                                    args.hop_size, 
                                    args.threshold)
-            
+    MemoryMonitor.monitor_system()
+    
+    print("\n")
     print("유튜브 타임라인을 출력합니다.")
-    timelines = analyze_timeline(timelines)
-    print_timelines(timelines, TimeFomatter.format_time_to_int(args.start_time))
+    print_timelines(timelines, TimeFormatter.format_time_to_int(args.start_time), True)
+    print_timelines(timelines, TimeFormatter.format_time_to_int(args.start_time))
     print_not_detected(audioprints, timelines)
 
 if __name__ == "__main__":

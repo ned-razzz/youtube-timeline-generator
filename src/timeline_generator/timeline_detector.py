@@ -7,6 +7,7 @@ import numba as nb
 from src.timeline_generator.read_audio import AudioChunk
 from src.audioprint_manager.audioprint_generator import AudioprintGenerator
 from src.timeline_generator.similarity_processor import compute_similarity, compute_time_offsets
+from src.utils.formatter import TimeFormatter
 from src.utils.types import TimelineData
 from src.utils.memory_manager import MemoryMonitor
 
@@ -27,7 +28,7 @@ class TimelineDetector:
     def print_detection_result(song_name: str, similarity: float, start_time: float) -> None:
         """감지 결과를 출력합니다."""
         print("============================")
-        print(f"발견: {song_name} (유사도: {similarity:.4f}), 시작 시간: {start_time}")
+        print(f"발견: {song_name} (유사도: {similarity:.4f}), 시작 시간: {TimeFormatter.format_time_to_str(start_time)}")
         print("============================")
 
     @classmethod
@@ -94,7 +95,6 @@ class TimelineDetector:
                 song_fingerprints
             )
             print(f"유사도: {detection.similarity:.4f}, {detection.offset} ({detection.song_name})")
-            MemoryMonitor.monitor_system()
             
             # 예상 시작 시간 계산
             audio_start_time = chunk.start_time - detection.offset
