@@ -17,11 +17,13 @@ Project Siren은 창작 팝송(창팝) 월드컵 유튜브 영상에서 노래 �
 ### 1. 설치 및 준비
 
 1. 필요 라이브러리 설치:
+
 ```bash
 pip install -r requirements.txt
 ```
 
 2. 프로젝트 다운로드:
+
 ```bash
 git clone https://github.com/your-username/project-siren.git
 cd project-siren
@@ -33,10 +35,12 @@ cd project-siren
 
 1. 노래 목록 파일 작성:
    - `songs.txt` 파일을 생성하고 다음 형식으로 작성:
+
    ```
    노래제목1: https://www.youtube.com/watch?v=xxxx
    노래제목2: https://www.youtube.com/watch?v=yyyy
    ```
+
    - 각 노래는 별도 라인에 작성하고, 노래 제목과 URL은 콜론(:)으로 구분
    - URL은 반드시 YouTube 동영상 URL 형식이어야 함
 
