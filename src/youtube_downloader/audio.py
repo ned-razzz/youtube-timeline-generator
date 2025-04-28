@@ -84,7 +84,7 @@ class AudioDownloader:
         logger.info(f'{len(youtube_urls)}개 유튜브 오디오 다운로드: {cls.download_start} ~ {cls.download_end}')
 
         # 오디오 일괄 다운로드
-        ydl_opts = cls._get_ydl_opts(save_path_hook)
+        ydl_opts = cls._get_ydl_opts([save_path_hook])
         cls._download(youtube_urls, ydl_opts)
 
         logger.info(f'다운로드 완료: {download_counts}/{len(youtube_urls)}')
