@@ -8,7 +8,7 @@ from typing import Dict
 import numba as nb
 import logging
 
-from src.timeline_generator.types import convert_to_python_dict, convert_to_numba_dict
+from src.utils.types import TypeConverter
 from src.utils.memory_manager import MemoryMonitor
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class FileDB:
         save_path = worldcup_path / f"{file_name}.pkl"
         
         # 오디오 지문을 직렬화 가능한 파이썬 딕셔너리로 변환
-        audioprint_dict = convert_to_python_dict(audioprint)
+        audioprint_dict = TypeConverter.convert_python_dict(audioprint)
         with open(save_path, 'wb') as f:
             pickle.dump(audioprint_dict, f)
         
@@ -50,7 +50,7 @@ class FileDB:
             audioprint_data = pickle.load(f)
         
         # 오디오 지문을 numba 딕셔너리 타입으로 변환
-        audioprint = convert_to_numba_dict(audioprint_data)
+        audioprint = TypeConverter.convert_numba_dict(audioprint_data)
 
         # 출력 
         logger.info(f"오디오 지문 로드: {file_path.stem}")

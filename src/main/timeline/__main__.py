@@ -11,9 +11,8 @@ from src.timeline_generator.read_audio import generate_audio_chunks
 from src.timeline_generator.timeline_detector import analyze_timeline, detect_timeline
 from src.timeline_generator.write_timelines import print_timelines
 from src.utils.file_db import FileDB
-from src.utils.formatter import Fommatter
+from src.utils.formatter import TimeFomatter
 from src.utils.memory_manager import MemoryMonitor
-from src.youtube_downloader.audio_loader import download_youtube_audio
 from src.youtube_downloader.audio import AudioDownloader
 
 IF_TRACE = False

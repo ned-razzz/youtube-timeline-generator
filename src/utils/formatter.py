@@ -1,5 +1,5 @@
 
-class Fommatter:
+class TimeFomatter:
     """초 단위 데이터 문자열 변환 모듈"""
 
     @staticmethod
