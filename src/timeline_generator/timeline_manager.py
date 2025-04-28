@@ -3,7 +3,7 @@ import json
 from typing import List
 from matplotlib import pyplot as plt
 
-from src.utils.formatter import TimeFomatter
+from src.utils.formatter import TimeFormatter
 from src.utils.types import TimelineData
 
 def print_timelines(timelines, audio_start_offset):
