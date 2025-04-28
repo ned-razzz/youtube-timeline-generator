@@ -5,7 +5,11 @@ import numpy as np
 import numba as nb
 
 # 타입 힌트를 위한 정의
-TimelineData = Dict[str, Any]
+@dataclass
+class TimelineData:
+    name: str
+    similarity: float
+    start_time: int
 
 class TypeConverter:
 

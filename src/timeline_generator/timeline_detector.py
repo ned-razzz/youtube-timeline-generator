@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Dict, Generator
+from typing import Any, Dict, Generator, List
 
 import numpy as np
 import numba as nb
@@ -14,7 +14,7 @@ class TimelineDetector:
     """노래 타임라인을 감지하는 클래스"""
     
     # 클래스 변수 정의
-    BEST_SIMILARITY_THRESHOLD = 0.01
+    BEST_SIMILARITY_THRESHOLD = 0.009
     
     @dataclass
     class DetectionResult:
@@ -71,7 +71,7 @@ class TimelineDetector:
             audio_chunks: Generator[AudioChunk, Any, None], 
             song_fingerprints: Dict[str, nb.typed.Dict],
             hop_size: int,
-            similarity_threshold: float
+            similarity_threshold: float = 0
     ) -> Generator[TimelineData, None, None]:
         """
         오디오 청크에서 노래를 감지하고 타임라인을 생성합니다.
@@ -107,13 +107,41 @@ class TimelineDetector:
 
             # 유사도 0.01 넘을 시 다음 90초의 청크는 무시
             if detection.similarity > cls.BEST_SIMILARITY_THRESHOLD:
+                cls.print_detection_result(detection.song_name, detection.similarity, audio_start_time)
                 skip_counts += 90 // hop_size
             
-            cls.print_detection_result(detection.song_name, detection.similarity, audio_start_time)
             # 값 저장
             timeline = {
                 "song_name": detection.song_name,
                 "similarity": detection.similarity,
                 "start_time": round(audio_start_time),
             }
-            yield timeline
+            yield TimelineData(name=detection.song_name,
+                               similarity=detection.similarity,
+                               start_time=round(audio_start_time))
+
+    @classmethod
+    def analyze_timeline(cls, timeline_chunks: Generator[TimelineData, None, None]) -> List[TimelineData]:
+        """정확한 타임라인을 솎아내고 시간순으로 정렬합니다."""
+        best_timelines: Dict[str, TimelineData] = {} # 각 노래별 최고 유사도의 타임라인만 저장한 변수
+        for timeline in timeline_chunks:
+            best_timeline = best_timelines.get(timeline.name, None)
+            
+            # 처음 감지한 노래라면 타임라인 추가
+            if not best_timeline:
+                best_timelines[timeline.name] = timeline
+                continue
+
+            #이미 타임라인이 유사도가 충분히 높으면 스킵
+            if best_timeline.similarity > cls.BEST_SIMILARITY_THRESHOLD:
+                continue
+            
+            # 해당 타임라인의 유사도가 현재 타임라인보다 높으면 업데이트 
+            if timeline.similarity > best_timeline.similarity:
+                best_timelines[timeline.name] = timeline
+
+        # 리스트로 시간순 정렬하여 반환
+        # .sort(key=lambda x: x.start_time)
+        result = [t for t in best_timelines.values()]
+        result.sort(key=lambda x: x.start_time)
+        return result

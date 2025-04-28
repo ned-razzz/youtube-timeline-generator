@@ -9,7 +9,7 @@ import gc
 
 from src.timeline_generator.read_audio import generate_audio_chunks
 from src.timeline_generator.timeline_detector import TimelineDetector
-from src.timeline_generator.timeline_manager import analyze_timeline, print_timelines
+from src.timeline_generator.timeline_manager import print_not_detected, print_timelines
 from src.utils.file_db import FileDB
 from src.utils.formatter import TimeFomatter
 from src.utils.memory_manager import MemoryMonitor
@@ -76,13 +76,8 @@ def generate_timelines(audio_data,
                                                        hop_size, 
                                                        threshold)
     
-    # 타임라인 통합
-    timelines = []
-    for timeline in timeline_chunks:
-        timelines.append(timeline)
-        
-    # 중복 제거 및 정렬
-    timelines = analyze_timeline(timelines)
+    # 최종 타인라인 데이터 정리
+    timelines = TimelineDetector.analyze_timeline(timeline_chunks)
     return timelines
 
 # 메인 함수 인자
@@ -162,6 +157,7 @@ def main():
     print("유튜브 타임라인을 출력합니다.")
     timelines = analyze_timeline(timelines)
     print_timelines(timelines, TimeFomatter.format_time_to_int(args.start_time))
+    print_not_detected(audioprints, timelines)
 
 if __name__ == "__main__":
     try:
