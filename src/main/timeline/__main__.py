@@ -8,8 +8,8 @@ import argparse
 import gc
 
 from src.timeline_generator.read_audio import generate_audio_chunks
-from src.timeline_generator.timeline_detector import analyze_timeline, detect_timeline
-from src.timeline_generator.write_timelines import print_timelines
+from src.timeline_generator.timeline_detector import TimelineDetector
+from src.timeline_generator.timeline_manager import analyze_timeline, print_timelines
 from src.utils.file_db import FileDB
 from src.utils.formatter import TimeFomatter
 from src.utils.memory_manager import MemoryMonitor
@@ -71,10 +71,10 @@ def generate_timelines(audio_data,
                                          hop_size)
     
     # 오디오에서 타임라인 탐지
-    timeline_chunks = detect_timeline(audio_chunks, 
-                                      fingerprints, 
-                                      hop_size, 
-                                      threshold)
+    timeline_chunks = TimelineDetector.detect_timeline(audio_chunks, 
+                                                       fingerprints, 
+                                                       hop_size, 
+                                                       threshold)
     
     # 타임라인 통합
     timelines = []
@@ -82,24 +82,8 @@ def generate_timelines(audio_data,
         timelines.append(timeline)
         
     # 중복 제거 및 정렬
-    # timelines = analyze_timeline(timelines)
+    timelines = analyze_timeline(timelines)
     return timelines
-
-def print_timelines(timelines, audio_start_seconds):
-    """타임라인 결과를 출력합니다."""
-    print("발견된 노래:")
-    print(f"{'노래 이름':^30}{'시작 시간':^10}{'유사도':^10}")
-    print("-" * 80)
-    for timeline in timelines:
-        start_seconds = timeline['start_time']
-        song_name = timeline['song_name']
-        similarity = timeline['similarity']
-        
-        # 시간을 HH:MM:SS 형식으로 변환
-        time_str = Fommatter.format_time_to_str(audio_start_seconds + start_seconds)
-        
-        print(f"{song_name} {time_str}")
-    print(f"프로그램으로 돌려서 부정확할 수 있습니다: {len(timelines)}개")
 
 # 메인 함수 인자
 @dataclass
@@ -121,7 +105,7 @@ def parse_arguments():
     parser.add_argument("-ed", "--end", type=str, default="00:10:00", help="종료 시간 (HH:MM:SS)")
     parser.add_argument("-ch", "--chunk", default=60, type=int, help="각 오디오 청크의 감지 크기 (초)")
     parser.add_argument("-hp", "--hop", default=30, type=int, help="다음 청크 진행 크기")
-    parser.add_argument("-th", "--threshold", default=0.003, type=float, help="감지할 최소 유사도 임계값")
+    parser.add_argument("-th", "--threshold", default=0.004, type=float, help="감지할 최소 유사도 임계값")
     parser.add_argument("--trace", action="store_true", help="오류 로그 반환 설정")
     args = parser.parse_args()
 
@@ -177,7 +161,7 @@ def main():
             
     print("유튜브 타임라인을 출력합니다.")
     timelines = analyze_timeline(timelines)
-    print_timelines(timelines, Fommatter.format_time_to_int( args.start_time))
+    print_timelines(timelines, TimeFomatter.format_time_to_int(args.start_time))
 
 if __name__ == "__main__":
     try:
