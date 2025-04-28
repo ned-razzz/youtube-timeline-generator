@@ -3,7 +3,6 @@ YouTube 오디오 추출 및 지문 생성 배치 처리 애플리케이션 메�
 """
 from dataclasses import dataclass
 import re
-import shutil
 import traceback
 import argparse
 import gc
@@ -12,7 +11,7 @@ import logging
 from typing import Any, List, Tuple
 import essentia.standard as es
 
-from src.fingerprint_manager.fingerprint_generator import FingerprintGenerator
+from src.fingerprint_manager.fingerprint_generator import AudioprintGenerator
 from src.utils.file_db import FileDB
 from src.youtube_downloader.audio import AudioDownloader
 
@@ -58,20 +57,16 @@ def download_youtube_audios(
     # YouTube URL에서 오디오 다운로드
     AudioDownloader.set_config(start="00:00:00", end="00:00:30")
 
-    downloads_count = AudioDownloader.load_audio_batch(urls)
+    downloads_count = AudioDownloader.download_audio_batch(urls)
     if downloads_count == 0:
         raise Exception("오디오를 하나 이상 다운로드 받지 못했습니다.")
 
-def generate_fingerprints(
-    audio_dir: Path,
-)-> List[Tuple[str, Any]]:
-    logger.info(f"{audio_dir} 폴더에서 오디오를 오디오 지문으로 변환 중...")
-
-    fingerprint_generator = FingerprintGenerator()
+def generate_audioprints()-> List[Tuple[str, Any]]:
+    logger.info(f"다운로드한 오디오를 오디오 지문으로 변환 중...")
 
     processed_count = 0 # 지문 변환 성공 횟수
     failed_count = 0 # 지문 변환 실패 횟수
-    fingerprints = [] # 오디오 지문 저장 변수
+    audioprints = [] # 오디오 지문 저장 변수
     
     # 디렉토리에서 오디오 파일들을 읽어서 오디오 지문 변환
     for audio_path in AudioDownloader.get_downloads_path():
@@ -84,7 +79,7 @@ def generate_fingerprints(
             audio_path = es.MonoLoader(filename=str(audio_path), sampleRate=sample_rate)()
 
             # 오디오 지문 생성
-            fingerprint = fingerprint_generator.get_spectrogram_fingerprint(audio_path, sample_rate)
+            audioprint = AudioprintGenerator.get_spectrogram_fingerprint(audio_path, sample_rate)
         except Exception as e:
             # 지문 생성 실패 시
             failed_count += 1
@@ -95,17 +90,17 @@ def generate_fingerprints(
             
         # 지문 생성 성공 시
         processed_count += 1
-        fingerprints.append((audio_name, fingerprint))
+        audioprints.append((audio_name, audioprint))
 
     if processed_count == 0:
         raise Exception("아무 지문도 생성하지 못했습니다.")
 
     logger.info(f"지문 생성 완료: 성공 {processed_count}개 실패 {failed_count}개")
 
-    return fingerprints
+    return audioprints
 
-def save_fingerprints(
-    fingerprints: List[Tuple[str, Any]],
+def save_audioprints(
+    audioprints: List[Tuple[str, Any]],
     worldcup_name: str,
 ) -> tuple:
     """
@@ -113,8 +108,8 @@ def save_fingerprints(
     """
     logger.info(f"오디오 지문 데이터베이스에 저장 중...")
 
-    for name, fingerprint in fingerprints:
-        FileDB.save_audioprint(name, fingerprint, worldcup_name)
+    for name, audioprint in audioprints:
+        FileDB.save_audioprint(name, audioprint, worldcup_name)
         logger.info(f"지문 저장 완료: {name}")
 
 # 메임 함수 인자
@@ -155,11 +150,11 @@ def main():
     # 오디오 지문 생성
     try:
         print()
-        fingerprints = generate_fingerprints()
+        audioprints = generate_audioprints()
 
         # 오디오 지문 저장
         print()
-        save_fingerprints(fingerprints, args.worldcup_name)
+        save_audioprints(audioprints, args.worldcup_name)
     finally:
         # 다운로드한 오디오 삭제
         AudioDownloader.clean_out()

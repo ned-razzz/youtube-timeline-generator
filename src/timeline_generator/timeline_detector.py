@@ -77,11 +77,11 @@ def detect_timeline(
     Yields:
         타임라인 데이터 사전
     """
-    fingerprint_generator = FingerprintGenerator()
+    skip_counts = 0
     
     for chunk in audio_chunks:
         # 현재 윈도우의 지문 생성
-        chunk_fingerprint = fingerprint_generator.get_spectrogram_fingerprint(
+        chunk_fingerprint = AudioprintGenerator.get_spectrogram_fingerprint(
             chunk.audio, chunk.samplerate
         )
 
