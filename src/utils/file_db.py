@@ -18,21 +18,17 @@ logger = logging.getLogger(__name__)
 class FileDB:
     """오디오 지문을 파일 시스템에 저장하는 관리자 클래스"""
 
-    base_path = Path("fingerprints")
+    base_path = Path("audioprints")
 
     @classmethod
-    def _ensure_directory(cls):
-        """데이터베이스 디렉토리가 존재하는지 확인하고, 없으면 생성합니다."""
-        if not cls.base_path.exists():
-            cls.base_path.mkdir(parents=True)
-
-    @classmethod
-    def save_audioprint(
-        cls, file_name: str, audioprint: nb.typed.Dict, folder_name: str
-    ):
+    def save_audioprint(cls, file_name: str, audioprint: nb.typed.Dict, folder_name: str):
         """오디오 지문을 파일로 저장"""
+        # 데이터베이스 디렉토리 생성
+        cls.base_path.mkdir(parents=True, exist_ok=True)
+
         # 월드컵 폴더 경로 생성
         worldcup_path = cls.base_path / folder_name
+        worldcup_path.mkdir(parents=True, exist_ok=True)
 
         # 저장 경로 설정
         save_path = worldcup_path / f"{file_name}.pkl"
@@ -77,7 +73,3 @@ class FileDB:
                 audioprints[audioprint_name] = cls.load_audioprint(file_path)
 
         return audioprints
-
-
-# 모듈 import 즉시 데이터베이스 디렉토리 생성
-FileDB._ensure_directory()

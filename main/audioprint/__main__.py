@@ -21,45 +21,62 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
-def read_youtube_urls(file_path: Path) -> list:
+# YouTube URL 유효성 검증 함수
+def is_valid_youtube_url(url: str) -> bool:
+    return url.startswith("https://www.youtube.com/watch?v=") or url.startswith("https://youtu.be/")
+
+
+def read_youtube_urls(file_path: Path) -> dict:
     logger.info(f"{file_path} 경로에서 YouTube URL 리스트를 가져오는 중...")
 
     # 파일 여부 검증
     if not file_path.exists():
         raise FileNotFoundError(f"{file_path} 경로에서 파일을 못찾았습니다.")
 
-    # 파일에서 유튜브 url 읽기
-    urls = []
+    # 파일에서 name: youtube_url 형식으로 읽어 딕셔너리로 저장
+    urls = {}
     try:
         with open(file_path, "r", encoding="utf-8") as file:
-            # 각 줄을 읽고, 빈 줄과 공백을 제거
             for line in file:
                 line = line.strip()
                 if line:
-                    urls.append(line)
-                    logger.info(f"\tRead URL: {line}")
+                    # name: youtube_url 형식 파싱
+                    parts = line.split(":", 1)  # 첫 번째 콜론만 기준으로 분리
+                    if len(parts) != 2:
+                        logger.warning(f"잘못된 형식 (name: url 형식이 아님): {line}")
+                        continue
+
+                    name = parts[0].strip()
+                    url = parts[1].strip()
+
+                    # 유효한 YouTube URL 검증
+                    if not is_valid_youtube_url(url):
+                        logger.warning(f"유효하지 않은 YouTube URL: {url}")
+                        continue
+
+                    urls[name] = url
+                    logger.info(f"\tRead URL: {name} -> {url}")
     except IOError as e:
         logger.error(f"URL 파일을 읽을 때 오류가 발생했습니다: {e}")
         raise
 
     # 로그 출력
     if not urls:
-        raise Exception("URL을 하나 아상 가져오지 못했습니다.")
+        raise Exception("URL을 하나 이상 가져오지 못했습니다.")
 
-    logger.info(f"읽은 YouTube URL 리스트: {len(urls)}개")
+    logger.info(f"읽은 YouTube URL 항목: {len(urls)}개")
 
     return urls
 
 
 def download_youtube_audios(
-    urls: list,
+    urls: dict,
 ) -> Path:
     # YouTube URL에서 오디오 다운로드
     AudioDownloader.set_config(start="00:00:00", end="00:00:30")
 
-    downloads_count = AudioDownloader.download_audio_batch(urls)
-    if downloads_count == 0:
-        raise Exception("오디오를 하나 이상 다운로드 받지 못했습니다.")
+    for name, url in urls.items():
+        AudioDownloader.download_audio(name, url)
 
 
 def generate_audioprints() -> List[Tuple[str, Any]]:
@@ -77,14 +94,10 @@ def generate_audioprints() -> List[Tuple[str, Any]]:
         try:
             # 오디오 파일 로드 및 지문 생성
             _, _, sample_rate = AudioDownloader.get_audio_metadata(audio_path)
-            audio_path = es.MonoLoader(
-                filename=str(audio_path), sampleRate=sample_rate
-            )()
+            audio_path = es.MonoLoader(filename=str(audio_path), sampleRate=sample_rate)()
 
             # 오디오 지문 생성
-            audioprint = AudioprintGenerator.get_spectrogram_fingerprint(
-                audio_path, sample_rate
-            )
+            audioprint = AudioprintGenerator.get_spectrogram_fingerprint(audio_path, sample_rate)
         except Exception as e:
             # 지문 생성 실패 시
             failed_count += 1

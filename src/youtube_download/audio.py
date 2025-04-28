@@ -19,11 +19,12 @@ class AudioDownloader:
     download_dir: Path = Path(tempfile.mkdtemp())
 
     @classmethod
-    def _get_ydl_opts(cls, hooks: list = []):
+    def _get_ydl_opts(cls, file_name: str = "%(title)s", hooks: list = []):
         """ydl_opts 다운로드 옵션 반환"""
         return {
             "format": "bestaudio/best",
             "paths": {"home": str(cls.download_dir)},
+            "outtmpl": f"{file_name}.%(ext)s",
             "postprocessors": [
                 {
                     "key": "FFmpegExtractAudio",
@@ -76,6 +77,18 @@ class AudioDownloader:
         return True
 
     @classmethod
+    def download_audio(cls, file_name: str, youtube_url: str) -> int:
+        """다수의 유튜브 오디오 다운로드"""
+
+        logger.info(f"유튜브 오디오 다운로드: {youtube_url}")
+
+        # 오디오 일괄 다운로드
+        ydl_opts = cls._get_ydl_opts(file_name=file_name)
+        cls._download(youtube_url, ydl_opts)
+
+        logger.info(f"다운로드 완료")
+
+    @classmethod
     def download_audio_batch(cls, youtube_urls: List[str]) -> int:
         """다수의 유튜브 오디오 일괄 다운로드"""
         # 유튜브 오디오 성공 횟수 hook
@@ -110,9 +123,7 @@ class AudioDownloader:
             audio_path = next(cls.get_downloads_path())
             _, _, sample_rate = cls.get_audio_metadata(audio_path)
 
-            audio_data = es.MonoLoader(
-                filename=str(audio_path), sampleRate=sample_rate
-            )()
+            audio_data = es.MonoLoader(filename=str(audio_path), sampleRate=sample_rate)()
             print(type(audio_data))
 
             return audio_data, audio_path

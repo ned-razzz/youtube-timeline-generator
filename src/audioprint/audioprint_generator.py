@@ -17,7 +17,7 @@ class AudioprintGenerator:
     spectral_peaks = es.SpectralPeaks(
         orderBy="magnitude",
         magnitudeThreshold=0.0001,  # 낮은 에너지 피크 무시
-        maxPeaks=25,  # 각 프레임당 최대 피크 수
+        maxPeaks=30,  # 각 프레임당 최대 피크 수
         minFrequency=100,  # 최소 주파수 (Hz)
         maxFrequency=4095,  # 최대 주파수 (Hz)
     )
@@ -38,9 +38,7 @@ class AudioprintGenerator:
         frame_idx = 0
 
         # 각 프레임 처리
-        for frame in es.FrameGenerator(
-            audio_data, frameSize=cls.frame_size, hopSize=cls.hop_size
-        ):
+        for frame in es.FrameGenerator(audio_data, frameSize=cls.frame_size, hopSize=cls.hop_size):
             # 윈도우 적용 및 스펙트럼 계산
             windowed_frame = cls.window(frame)
             spectrum_values = cls.spectrum(windowed_frame)
@@ -93,9 +91,7 @@ class AudioprintGenerator:
 
             if indices:
                 # 진폭 기준 정렬
-                sorted_indices = sorted(
-                    indices, key=lambda i: magnitudes[i], reverse=True
-                )
+                sorted_indices = sorted(indices, key=lambda i: magnitudes[i], reverse=True)
                 # 상위 피크만 선택
                 for idx in sorted_indices[:peaks_per_band]:
                     selected_freqs.append(frequencies[idx])
@@ -119,9 +115,7 @@ class AudioprintGenerator:
 
                     # 정수 해시 키 생성 (비트 연산 사용)
                     # freq1을 상위 비트에, freq_delta를 하위 비트에 배치
-                    hash_key = (int(freq1) << freq_bits) | (
-                        int(freq_delta) & delta_mask
-                    )
+                    hash_key = (int(freq1) << freq_bits) | (int(freq_delta) & delta_mask)
 
                     # 해시 테이블에 시간 정보와 함께 저장
                     pairs.append((hash_key, time_sec))
