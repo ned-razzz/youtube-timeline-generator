@@ -1,80 +1,49 @@
 from datetime import datetime
 import json
+from typing import List
 from matplotlib import pyplot as plt
-import numpy as np
-from collections import Counter
 
-def handle_timelines(timelines, audio_data):
-    # 결과 출력 부분의 오류 수정
-    if timelines:
-        print("\n발견된 노래:")
-        print("-" * 80)
-        print(f"{'시작 시간':^15}{'노래 이름':^30}{'유사도':^15}")
-        print("-" * 80)
+from src.utils.formatter import TimeFomatter
+from src.utils.types import TimelineData
+
+def print_timelines(timelines, audio_start_offset):
+    """타임라인 결과를 출력합니다."""
+    print("-" * 80)
+    print("발견된 노래:")
+    for timeline in timelines:
+        start_seconds = timeline['start_time']
+        song_name = timeline['song_name']
+        similarity = timeline['similarity']
         
-        for result in timelines:
-            start_time = result['estimated_start_time']
-            song_name = result['song_name']
-            similarity = result['similarity']
-            
-            # 시간을 MM:SS 형식으로 변환
-            minutes = int(start_time // 60)
-            seconds = int(start_time % 60)
-            time_str = f"{minutes:02d}:{seconds:02d}"
-            
-            # 수정된 형식 지정자
-            print(f"{time_str:^15}{song_name:^30}{similarity:^15.4f}")
+        # 시간을 HH:MM:SS 형식으로 변환
+        time_str = TimeFomatter.format_time_to_str(audio_start_offset + start_seconds)
         
-        # 결과 파일로 저장
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        result_file = f"song_detection_result_{timestamp}.json"
+        print(f"{song_name} {time_str} {similarity:.3f}")
+    print(f"프로그램으로 돌려서 부정확할 수 있습니다: {len(timelines)}개")
+
+def analyze_timeline(timelines: List[TimelineData]) -> List[TimelineData]:
+    """감지된 타임라인을 분석하여 중복을 제거하고 시간순으로 정렬합니다."""
+    # 유사도 높은 순으로 정렬
+    timelines.sort(key=lambda x: x["start_time"])
+
+    # 중복 제거 (같은 노래가 여러 윈도우에서 발견될 수 있음)
+    filtered_timelines = []
+    saved_songs = set()
+    
+    for timeline_data in timelines:
+        name = timeline_data["song_name"]
+        time = timeline_data["start_time"]
+        # similarity = timeline_data["similarity"]
         
-        with open(result_file, 'w', encoding='utf-8') as f:
-            json.dump(timelines, f, indent=2)
+        # 이미 감지된 노래이면 제외
+        for saved_name, saved_time in saved_songs:
+            if name == saved_name and time == saved_time:
+                continue
         
-        print(f"\n결과가 {result_file}에 저장되었습니다.")
-        
-        # 결과 시각화
-        plt.figure(figsize=(12, 6))
-        
-        # 긴 오디오의 총 길이
-        total_duration = len(audio_data) / 44100  # 샘플링 레이트 44.1kHz 가정
-        
-        for i, result in enumerate(timelines):
-            start_time = result['estimated_start_time']
-            song_name = result['song_name']
-            similarity = result['similarity']
-            
-            # 색상은 유사도에 따라 결정 (높을수록 진한 색)
-            color_intensity = 0.3 + 0.7 * similarity
-            color = (0, color_intensity, 0)
-            
-            # 선과 텍스트로 시작 시간 표시
-            plt.axvline(x=start_time, color=color, linestyle='-', linewidth=2)
-            plt.text(start_time, i % 5 + 1, f"{song_name} ({similarity:.2f})", 
-                    rotation=45, ha='right', fontsize=8)
-        
-        plt.xlim(0, total_duration)
-        plt.ylim(0, 6)
-        plt.xlabel('시간 (초)')
-        plt.title('발견된 노래 시작 지점')
-        plt.grid(True, alpha=0.3)
-        plt.yticks([])
-        
-        # X축 틱을 MM:SS 형식으로 변환
-        def format_time(x, pos):
-            minutes = int(x // 60)
-            seconds = int(x % 60)
-            return f"{minutes:02d}:{seconds:02d}"
-        
-        plt.gca().xaxis.set_major_formatter(plt.FuncFormatter(format_time))
-        
-        # 이미지 저장
-        plt.tight_layout()
-        plt.savefig(f"song_detection_visualization_{timestamp}.png", dpi=300)
-        print(f"시각화 이미지가 song_detection_visualization_{timestamp}.png에 저장되었습니다.")
-        
-        # 이미지 표시
-        plt.show()
-    else:
-        print("\n노래를 찾을 수 없습니다.")
+        filtered_timelines.append(timeline_data)
+        saved_songs.add((name, time))
+    
+    # 시작 시간 순으로 정렬
+    filtered_timelines.sort(key=lambda x: x["start_time"])
+    
+    return filtered_timelines
