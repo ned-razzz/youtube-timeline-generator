@@ -6,7 +6,7 @@ import numba as nb
 
 from src.timeline_generator.read_audio import AudioChunk
 from src.audioprint_manager.audioprint_generator import AudioprintGenerator
-from src.timeline_generator.similarity_processor import SimularityComputer
+from src.timeline_generator.similarity_processor import compute_similarity, compute_time_offsets
 from src.utils.types import TimelineData
 from src.utils.memory_manager import MemoryMonitor
 
@@ -47,13 +47,13 @@ class TimelineDetector:
 
         # 각 노래 지문을 순회하면서 지문 유사도 비교
         for name, song_fingerprint in song_fingerprints.items():
-            time_offsets = SimularityComputer.compute_time_offsets(audio_fingerprint, song_fingerprint)
+            time_offsets = compute_time_offsets(audio_fingerprint, song_fingerprint)
             numpy_offsets = np.array(time_offsets)
 
             # 가장 많이 발생하는 시간 오프셋 찾기 (일치하는 부분이 있다면)
-            similarity, offset = SimularityComputer.compute_similarity(numpy_offsets, 
-                                                                       len(audio_fingerprint),
-                                                                       len(song_fingerprint))
+            similarity, offset = compute_similarity(numpy_offsets,
+                                                    len(audio_fingerprint),
+                                                    len(song_fingerprint))
             print("\033[K", end="\r")
             print(f"{name}: {similarity}, {offset}", end="\r")
 
