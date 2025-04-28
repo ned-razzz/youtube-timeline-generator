@@ -4,12 +4,14 @@ from numba import types
 import numpy as np
 import numba as nb
 
+
 # 타입 힌트를 위한 정의
 @dataclass
 class TimelineData:
     name: str
     similarity: float
     start_time: int
+
 
 class TypeConverter:
 
@@ -37,6 +39,8 @@ class TypeConverter:
                 # 1. 기존 배열 재사용 가능하면 재사용
                 numba_dict[np.int32(key)] = np.asarray(value, dtype=np.float32)
         except (ValueError, TypeError):
-            raise ValueError(f"key는 정수, value는 실수여야 합니다: key: {type(key)}, value: {type(value)}")
-        
+            raise ValueError(
+                f"key는 정수, value는 실수여야 합니다: key: {type(key)}, value: {type(value)}"
+            )
+
         return numba_dict
