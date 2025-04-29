@@ -24,7 +24,7 @@ if [ "$CHOICE" = "1" ]; then
   read -p "노래 목록 파일 경로: " SONGLIST
   read -p "월드컵 이름: " WORLDCUP
   
-  docker run -it --rm -v "$(pwd):/data" yourusername/project-siren audioprint --urls /data/$SONGLIST --name "$WORLDCUP"
+  docker run -it --rm -v "$(pwd):/data" song5173/project-siren audioprint --urls /data/$SONGLIST --name "$WORLDCUP"
 elif [ "$CHOICE" = "2" ]; then
   echo
   echo "타임라인 생성 모드"
@@ -36,7 +36,7 @@ elif [ "$CHOICE" = "2" ]; then
   read -p "종료 시간 (HH:MM:SS) [기본값: 00:10:00]: " END
   END=${END:-00:10:00}
   
-  docker run -it --rm -v "$(pwd):/data" yourusername/project-siren timeline --url "$URL" --worldcup "$WORLDCUP" --start "$START" --end "$END"
+  docker run -it --rm -v "$(pwd):/data" song5173/project-siren timeline --url "$URL" --worldcup "$WORLDCUP" --start "$START" --end "$END"
 else
   echo "잘못된 선택입니다."
 fi

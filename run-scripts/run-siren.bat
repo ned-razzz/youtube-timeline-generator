@@ -26,7 +26,7 @@ if "%CHOICE%"=="1" (
   set /p SONGLIST="노래 목록 파일 경로: "
   set /p WORLDCUP="월드컵 이름: "
   
-  docker run -it --rm -v "%cd%:/data" yourusername/project-siren audioprint --urls /data/%SONGLIST% --name "%WORLDCUP%"
+  docker run -it --rm -v "%cd%:/data" song5173/project-siren audioprint --urls /data/%SONGLIST% --name "%WORLDCUP%"
 ) else if "%CHOICE%"=="2" (
   echo.
   echo 타임라인 생성 모드
@@ -38,7 +38,7 @@ if "%CHOICE%"=="1" (
   set /p END="종료 시간 (HH:MM:SS) [기본값: 00:10:00]: "
   if "%END%"=="" set END=00:10:00
   
-  docker run -it --rm -v "%cd%:/data" yourusername/project-siren timeline --url "%URL%" --worldcup "%WORLDCUP%" --start "%START%" --end "%END%"
+  docker run -it --rm -v "%cd%:/data" song5173/project-siren timeline --url "%URL%" --worldcup "%WORLDCUP%" --start "%START%" --end "%END%"
 ) else (
   echo 잘못된 선택입니다.
 )
