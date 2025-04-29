@@ -1,0 +1,214 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # 수동으로 워크플로우를 실행할 수 있는 옵션
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+    
+    - name: Install FFMPEG
+      uses: FedericoCarboni/setup-ffmpeg@v2
+      id: setup-ffmpeg
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install wheel setuptools
+        pip install --only-binary :all: numpy numba psutil argparse yt_dlp
+        
+        # essentia 패키지 별도 설치 시도
+        echo "essentia 패키지 설치 시도 중..."
+        pip install --no-deps essentia-whl || pip install essentia-tensorflowmodel || pip install essentia || echo "essentia 설치 실패, 계속 진행합니다"
+        
+        # 나머지 의존성 설치
+        pip install -r requirements.txt --no-deps || echo "일부 패키지 설치 실패, 계속 진행합니다"
+        pip install pyinstaller
+      
+    - name: Create project_siren.py
+      run: |
+        New-Item -Path "project_siren.py" -ItemType File -Force
+        Set-Content -Path "project_siren.py" -Value @'
+
+        #!/usr/bin/env python
+        """
+        Project Siren - 창팝 월드컵 유튜브 타임라인 자동 생성기
+        """
+        import sys
+        import os
+        import argparse
+
+        # 실행 환경에서 경로 조정을 위한 코드
+        def resource_path(relative_path):
+            """ 리소스 경로를 반환하는 함수 """
+            try:
+                # PyInstaller 번들 환경인 경우
+                base_path = sys._MEIPASS
+            except Exception:
+                # 일반 Python 환경인 경우
+                base_path = os.path.abspath(".")
+            
+            return os.path.join(base_path, relative_path)
+
+        # 필요한 경로 추가
+        sys.path.insert(0, resource_path("."))
+
+        def main():
+            parser = argparse.ArgumentParser(
+                description="Project Siren - 창팝 월드컵 유튜브 타임라인 자동 생성기",
+                formatter_class=argparse.RawTextHelpFormatter
+            )
+            
+            subparsers = parser.add_subparsers(dest="command", help="실행할 명령")
+            
+            # 오디오 지문 생성 명령어
+            audioprint_parser = subparsers.add_parser("audioprint", help="오디오 지문 생성")
+            audioprint_parser.add_argument("-u", "--urls", required=True, help="YouTube URL이 포함된 텍스트 파일 경로")
+            audioprint_parser.add_argument("-n", "--name", required=True, help="지문 컬렉션 이름")
+            
+            # 타임라인 생성 명령어
+            timeline_parser = subparsers.add_parser("timeline", help="타임라인 생성")
+            timeline_parser.add_argument("-u", "--url", required=True, help="월드컵 영상 YouTube URL")
+            timeline_parser.add_argument("-w", "--worldcup", required=True, help="감지할 월드컵 이름")
+            timeline_parser.add_argument("-st", "--start", default="00:00:00", help="시작 시간 (HH:MM:SS)")
+            timeline_parser.add_argument("-ed", "--end", default="00:10:00", help="종료 시간 (HH:MM:SS)")
+            timeline_parser.add_argument("-ch", "--chunk", type=int, default=60, help="각 오디오 청크의 감지 크기 (초)")
+            timeline_parser.add_argument("-hp", "--hop", type=int, default=30, help="다음 청크 진행 크기")
+            timeline_parser.add_argument("-th", "--threshold", type=float, default=0.001, help="감지할 최소 유사도 임계값")
+            timeline_parser.add_argument("--trace", action="store_true", help="오류 로그 반환 설정")
+            
+            args = parser.parse_args()
+            
+            if args.command is None:
+                parser.print_help()
+                return
+            
+            if args.command == "audioprint":
+                # 오디오 지문 생성 모듈 로드 및 실행
+                from main.audioprint.__main__ import main as audioprint_main
+                sys.argv = [
+                    "audioprint",
+                    "--urls", args.urls,
+                    "--name", args.name
+                ]
+                audioprint_main()
+            
+            elif args.command == "timeline":
+                # 타임라인 생성 모듈 로드 및 실행
+                from main.timeline.__main__ import main as timeline_main
+                sys.argv = [
+                    "timeline",
+                    "--url", args.url,
+                    "--worldcup", args.worldcup,
+                    "--start", args.start,
+                    "--end", args.end,
+                    "--chunk", str(args.chunk),
+                    "--hop", str(args.hop),
+                    "--threshold", str(args.threshold)
+                ]
+                if args.trace:
+                    sys.argv.append("--trace")
+                timeline_main()
+
+        if __name__ == "__main__":
+            main()
+        '@
+      shell: pwsh
+              
+    - name: Build with PyInstaller
+      run: |
+        pyinstaller --name siren --onefile --noconfirm --hidden-import=numba --hidden-import=numpy --hidden-import=yt_dlp --hidden-import=soundfile --hidden-import=psutil --add-data="src;src" --add-data="main;main" project_siren.py
+      continue-on-error: true
+      
+    - name: Create README for executable
+      run: |
+        New-Item -Path "dist/README.txt" -ItemType File -Force
+        Set-Content -Path "dist/README.txt" -Value @"
+        Project Siren - 창팝 월드컵 유튜브 타임라인 자동 생성기
+
+        사용 방법:
+        1. 오디오 지문 생성:
+          siren.exe audioprint --urls songs.txt --name "월드컵이름"
+
+        2. 타임라인 생성:
+          siren.exe timeline --url "https://www.youtube.com/watch?v=영상ID" --worldcup "월드컵이름" --start "00:00:00" --end "02:00:00"
+
+        주의사항:
+        - 최소 6GB 이상의 메모리가 필요합니다.
+        - 2시간 이상의 영상 처리 시 메모리 부족 오류가 발생할 수 있습니다.
+        "@
+      shell: pwsh
+              
+    - name: Create sample songs.txt
+      run: |
+        New-Item -Path "dist/sample_songs.txt" -ItemType File -Force
+        Set-Content -Path "dist/sample_songs.txt" -Value @"
+        # 이 파일은 노래 목록 예시입니다.
+        # 각 줄에 노래 제목과 YouTube URL을 콜론(:)으로 구분하여 작성하세요.
+        # 주석은 #로 시작합니다.
+
+        노래제목1: https://www.youtube.com/watch?v=xxxx
+        노래제목2: https://www.youtube.com/watch?v=yyyy
+        "@
+      shell: pwsh
+              
+    - name: Create batch helper files
+      run: |
+        New-Item -Path "dist/audioprint.bat" -ItemType File -Force
+        Set-Content -Path "dist/audioprint.bat" -Value @"
+        @echo off
+        echo Project Siren - 오디오 지문 생성
+        echo.
+        set /p SONGLIST=노래 목록 파일 경로: 
+        set /p WORLDCUP=월드컵 이름: 
+        siren.exe audioprint --urls "%SONGLIST%" --name "%WORLDCUP%"
+        pause
+        "@
+                
+        New-Item -Path "dist/timeline.bat" -ItemType File -Force
+        Set-Content -Path "dist/timeline.bat" -Value @"
+        @echo off
+        echo Project Siren - 타임라인 생성
+        echo.
+        set /p URL=유튜브 URL: 
+        set /p WORLDCUP=월드컵 이름: 
+        set /p START=시작 시간 (HH:MM:SS) [기본값: 00:00:00]: 
+        if "%START%"=="" set START=00:00:00
+        set /p END=종료 시간 (HH:MM:SS) [기본값: 00:10:00]: 
+        if "%END%"=="" set END=00:10:00
+        siren.exe timeline --url "%URL%" --worldcup "%WORLDCUP%" --start "%START%" --end "%END%"
+        pause
+        "@
+      shell: pwsh
+    
+    - name: Create ZIP package
+      run: |
+        Compress-Archive -Path dist/* -DestinationPath dist/Project-Siren.zip
+      shell: pwsh
+    
+    - name: Upload executable
+      uses: actions/upload-artifact@v4
+      with:
+        name: siren-executable
+        path: dist/siren.exe
+        
+    - name: Upload complete package
+      uses: actions/upload-artifact@v4
+      with:
+        name: Project-Siren-Full
+        path: dist/Project-Siren.zip
