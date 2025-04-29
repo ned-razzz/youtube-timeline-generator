@@ -155,3 +155,9 @@ project-siren/
 ## 라이센스
 
 이 프로젝트는 MIT 라이센스 하에 배포됩니다.
+
+## 프로젝트 위키
+
+다음 사이트에서 영어로 제공됩니다: https://deepwiki.com/ned-razzz/youtube-timeline-generator/1-overview
+
+프로젝트 설계가 궁금하시다면 참고하시길 바랍니다.
