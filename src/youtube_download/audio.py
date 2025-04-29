@@ -124,7 +124,6 @@ class AudioDownloader:
             _, _, sample_rate = cls.get_audio_metadata(audio_path)
 
             audio_data = es.MonoLoader(filename=str(audio_path), sampleRate=sample_rate)()
-            print(type(audio_data))
 
             return audio_data, audio_path
         except Exception as e:

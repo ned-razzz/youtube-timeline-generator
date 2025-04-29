@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class FileDB:
     """오디오 지문을 파일 시스템에 저장하는 관리자 클래스"""
 
-    base_path = Path("audioprints")
+    base_path = Path("/data/audioprints")
 
     @classmethod
     def save_audioprint(cls, file_name: str, audioprint: nb.typed.Dict, folder_name: str):
