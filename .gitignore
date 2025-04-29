@@ -4,5 +4,7 @@
 /audio/
 /db/
 /test/
+/build/
+/dist/
 /audioprints/
 __pycache__
