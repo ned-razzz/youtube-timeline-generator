@@ -46,13 +46,12 @@ def main():
     timeline_parser.add_argument("-st", "--start", default="00:00:00", help="시작 시간 (HH:MM:SS)")
     timeline_parser.add_argument("-ed", "--end", default="00:10:00", help="종료 시간 (HH:MM:SS)")
     timeline_parser.add_argument(
-        "-ch", "--chunk", type=int, default=60, help="각 오디오 청크의 감지 크기 (초)"
+        "-ch", "--chunk", type=int, default=30, help="각 오디오 청크의 감지 크기 (초)"
     )
-    timeline_parser.add_argument("-hp", "--hop", type=int, default=30, help="다음 청크 진행 크기")
+    timeline_parser.add_argument("-hp", "--hop", type=int, default=20, help="다음 청크 진행 크기")
     timeline_parser.add_argument(
         "-th", "--threshold", type=float, default=0.001, help="감지할 최소 유사도 임계값"
     )
-    timeline_parser.add_argument("--trace", action="store_true", help="오류 로그 반환 설정")
 
     args = parser.parse_args()
 
@@ -88,8 +87,6 @@ def main():
             "--threshold",
             str(args.threshold),
         ]
-        if args.trace:
-            sys.argv.append("--trace")
         timeline_main()
 
 
