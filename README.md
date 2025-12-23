@@ -1,6 +1,6 @@
 # Project Siren
 
-**노래 이상형 월드컵 유튜브 타임라인 자동 생성기** (Changpop World Cup YouTube Timeline Generator)
+**노래 이상형 월드컵 유튜브 타임라인 자동 생성기**
 
 ## 프로젝트 소개
 
